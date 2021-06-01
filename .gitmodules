@@ -1,0 +1,28 @@
+[submodule "qubes-core-vchan-xen"]
+	path = qubes-core-vchan-xen
+	url = https://github.com/QubesOS/qubes-core-vchan-xen
+[submodule "qubes-core-agent-windows"]
+	path = qubes-core-agent-windows
+	url = https://github.com/QubesOS/qubes-core-agent-windows
+[submodule "qubes-core-qubesdb"]
+	path = qubes-core-qubesdb
+	url = https://github.com/QubesOS/qubes-core-qubesdb
+[submodule "qubes-windows-utils"]
+	path = qubes-windows-utils
+	url = https://github.com/QubesOS/qubes-windows-utils
+[submodule "qubes-gui-common"]
+	path = qubes-gui-common
+	url = https://github.com/QubesOS/qubes-gui-common
+[submodule "qubes-gui-agent-windows"]
+	path = qubes-gui-agent-windows
+	url = https://github.com/QubesOS/qubes-gui-agent-windows
+[submodule "qubes-installer-qubes-os-windows-tools"]
+	path = qubes-installer-qubes-os-windows-tools
+	url = https://github.com/QubesOS/qubes-installer-qubes-os-windows-tools
+[submodule "qubes-vmm-xen-windows-pvdrivers"]
+	path = qubes-vmm-xen-windows-pvdrivers
+	url = https://github.com/QubesOS/qubes-vmm-xen-windows-pvdrivers
+[submodule "qubes-vmm-xen-win-pvdrivers-xeniface"]
+	path = qubes-vmm-xen-win-pvdrivers-xeniface
+	url = https://github.com/QubesOS/qubes-vmm-xen-win-pvdrivers-xeniface
+	branch = upstream-xencontrol-win7

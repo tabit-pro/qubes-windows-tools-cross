@@ -1,0 +1,151 @@
+%define		xenpv_version 8.2.2
+
+Name:		qubes-windows-tools
+Version:	@VERSION@
+Release:	@REL@
+Summary:	Qubes Tools for Windows VMs
+Group:		Qubes
+License:	GPL
+BuildRequires:	genisoimage
+BuildRequires:	mingw64-gcc
+BuildRequires:	mingw64-winpthreads-static
+BuildRequires:	mingw64-gcc-c++
+BuildRequires:	wine
+BuildRequires:	svn
+BuildRequires:	winetricks
+BuildRequires:  mono-core
+BuildArch:	noarch
+
+# devcon tool from windows samples
+Source0:	devcon.tar.gz
+Source1:	@qubes-core-vchan-xen@
+Source2:	@qubes-core-agent-windows@
+Source3:	@qubes-windows-utils@
+Source4:	@qubes-core-qubesdb@
+Source5:	@qubes-gui-common@
+Source6:	@qubes-gui-agent-windows@
+Source7:	@qubes-installer-qubes-os-windows-tools@
+Source8:	@qubes-vmm-xen-windows-pvdrivers@
+Source9:	@qubes-vmm-xen-win-pvdrivers-xeniface@
+
+# https://raw.githubusercontent.com/llvm-mirror/compiler-rt/master/lib/builtins/assembly.h
+Source10: 	assembly.h
+
+# Add local sources
+Source16:	preparation.bat
+Source17:	pkihelper.c
+Source18:	qubes-tools-combined.wxs
+Source19:	diskpart.ps1
+Source20:	qnetwork_setup.bat
+Source100:	Makefile
+
+# latest stable xen binary drivers
+Source21:	xenbus-%{xenpv_version}.tar
+Source22:	xeniface-%{xenpv_version}.tar
+Source23:	xenvif-%{xenpv_version}.tar
+Source24:	xennet-%{xenpv_version}.tar
+Source25:	xenvbd-%{xenpv_version}.tar
+
+Source26:	wix311-binaries.zip
+Source27:	dotNetFx40_Full_x86_x64.exe
+
+Patch0:         devcon-headers.patch
+
+# stalled
+Patch1:		qubes-core-vchan-xen-mingw-fragments.patch
+Patch2:		qubes-core-agent-windows-mingw-fragments.patch
+Patch3:		qubes-windows-utils-mingw-fragments.patch
+Patch4:		qubes-core-qubesdb-mingw-fragments.patch
+Patch5:		qubes-gui-agent-windows-mingw-fragments.patch
+Patch6:		qubes-installer-qubes-os-windows-tools-mingw-fragments.patch
+Patch7:		qubes-vmm-xen-windows-pvdrivers-mingw-fragments.patch
+Patch8:		qubes-vmm-xen-win-pvdrivers-xeniface-mingw.patch
+
+# R4.1 required
+Patch11:	qubes-core-agent-windows-warn-incompat-proto.patch
+Patch12:	qubesdb-daemon-win32-fix.patch
+
+# stablility patches (get rid of BSODs)
+Patch13:	qubes-gui-agent-windows-destroy.patch
+Patch14:	qubes-gui-agent-windows-watchdog-disable-session-change.patch
+
+# build with inlined __chkstk_ms
+Patch41:	qwt-chkstk.patch
+
+# fix wrong relative path when qrexec called with "QUBESRPC qubes.Filecopy+"
+Patch42:	qrexec-store-separator-to-fix-relative-path-construct.patch
+
+# add IO_REPARSE_TAG_APPEXECLINK support to move-profiles
+Patch43:	qwt-appexeclink.patch
+
+# dispvm halts right after process was invoked
+# cmdlet should wait for process and its descendants to complete
+Patch44:	qwt-wait-for-process.patch
+
+%prep
+%setup -c -T
+cp -f %{S:100} ./
+unzip -d wix %{S:26}
+cat %{_sourcedir}/devcon.tar.gz | tar -xzvf - -i
+cat %{_sourcedir}/qubes*.tar.gz | tar -xzvf - -i
+cat %{_sourcedir}/xen*.tar | tar -xvf - -i
+cp -f %{S:18} ./
+mkdir -p qubes-gui-agent-windows/install-helper/pkihelper/
+cp -f %{S:17} qubes-gui-agent-windows/install-helper/pkihelper/
+mkdir -p include
+
+cp -f %{S:10} include
+
+patch -d qubes-core-vchan-xen -p1 < %{P:1}
+patch -d qubes-core-agent-windows -p1 < %{P:2}
+patch -d qubes-windows-utils -p1 < %{P:3}
+patch -d qubes-core-qubesdb -p1 < %{P:4}
+patch -d qubes-gui-agent-windows -p1 < %{P:5}
+patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:6}
+patch -d qubes-vmm-xen-windows-pvdrivers -p1 < %{P:7}
+patch -d qubes-vmm-xen-win-pvdrivers-xeniface -p1 < %{P:8}
+patch -d qubes-gui-agent-windows -p1 < %{P:13}
+patch -d qubes-gui-agent-windows -p1 < %{P:14}
+
+%patch0 -p1
+%patch11 -p0
+%patch12 -p0
+%patch41 -p1
+%patch42 -p1
+%patch43 -p1
+%patch44 -p1
+
+mkdir -p $HOME/.cache/winetricks/dotnet40
+cp %{S:27} $HOME/.cache/winetricks/dotnet40
+WINEPREFIX=`pwd`/wine WINEARCH=win32 winetricks -q --force dotnet40
+
+%description
+PV Drivers and Qubes Tools for Windows AppVMs.
+
+%build
+
+make all
+
+export WINEMU=wine; export WINEPREFIX=`pwd`/wine; export WINEARCH=win32;
+export WINEDEBUG=fixme-all; export WIXPATH=`pwd`/wix; 
+export DDK_ARCH=x64
+export WIN_BUILD_TYPE=chk; export VERSION=4.0.0.0;
+export QUBES_BIN=bin/${DDK_ARCH}
+cp -f %{S:19} %{S:20} %{S:16} bin/${DDK_ARCH}
+${WINEMU} ${WIXPATH}/candle.exe -arch ${DDK_ARCH} -ext WixDifxAppExtension -ext WixIIsExtension *.wxs;
+${WINEMU} ${WIXPATH}/light.exe -sval *.wixobj -ext WixDifxAppExtension -ext WixUIExtension -ext WixIIsExtension -ext WixUtilExtension "Z:${WIXPATH}/difxapp_${DDK_ARCH}.wixlib" -o qubes-tools-${DDK_ARCH}.msi
+mkdir -p iso-content
+cp qubes-tools-${DDK_ARCH}.msi iso-content/
+genisoimage -o qubes-windows-tools-%{version}.%{release}.iso -m .gitignore -JR iso-content
+
+%install
+mkdir -p $RPM_BUILD_ROOT/usr/lib/qubes/
+cp qubes-windows-tools-%{version}.%{release}.iso $RPM_BUILD_ROOT/usr/lib/qubes/
+ln -s qubes-windows-tools-%{version}.%{release}.iso $RPM_BUILD_ROOT/usr/lib/qubes/qubes-windows-tools.iso
+
+%files
+/usr/lib/qubes/qubes-windows-tools-%{version}.%{release}.iso
+/usr/lib/qubes/qubes-windows-tools.iso
+
+%changelog
+@CHANGELOG@
