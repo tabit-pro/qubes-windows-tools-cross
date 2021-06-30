@@ -17,7 +17,7 @@ make BUILDERCONF=example-configs/qubes-os-r4.1.conf BASEURL=https://github.com G
 ```
 3. Build QWT iso
 ```
-make BUILDERCONF=example-configs/qubes-os-r4.1.conf COMPONENTS=windows-tools-cross windows-tools-cross
+make BUILDERCONF=example-configs/qubes-os-r4.1.conf COMPONENTS=windows-tools-cross windows-tools-cross-dom0
 ```
 4. Extract result package in disposable VM to get temporary CDROM device available
 ```
