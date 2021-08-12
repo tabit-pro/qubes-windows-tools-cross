@@ -27,42 +27,38 @@ OUTDIR=$(PWD)/bin/$(ARCH)
 PVDRIVERS_VERSION = 8.2.2
 
 ifneq ($(DISTFILES_MIRROR),)
-BASE_URL := $(DISTFILES_MIRROR)/pvdrivers
+BASE_URL := $(DISTFILES_MIRROR)/qwt-crossbuild
 else
 BASE_URL = https://xenbits.xenproject.org/pvdrivers/win
 endif
 
-URLS := $(BASE_URL)/$(PVDRIVERS_VERSION)/xenbus.tar \
+PVDRIVERS_URLS := $(BASE_URL)/$(PVDRIVERS_VERSION)/xenbus.tar \
                 $(BASE_URL)/$(PVDRIVERS_VERSION)/xeniface.tar \
                 $(BASE_URL)/$(PVDRIVERS_VERSION)/xenvbd.tar \
                 $(BASE_URL)/$(PVDRIVERS_VERSION)/xennet.tar \
                 $(BASE_URL)/$(PVDRIVERS_VERSION)/xenvif.tar
 
-FILES_UPSTREAM := $(notdir $(URLS))
-FILES := $(patsubst %.tar,%-$(PVDRIVERS_VERSION).tar,$(FILES_UPSTREAM))
+PVDRIVERS_UPSTREAM := $(notdir $(PVDRIVERS_URLS))
+PVDRIVERS := $(patsubst %.tar,%-$(PVDRIVERS_VERSION).tar,$(PVDRIVERS_UPSTREAM))
 
-$(FILES): %-$(PVDRIVERS_VERSION).tar:
+$(PVDRIVERS): %-$(PVDRIVERS_VERSION).tar:
 	echo $*
-	wget -O $@.UNTRUSTED "$(filter %$*.tar,$(URLS))"
+	$(FETCH_CMD) $@.UNTRUSTED "$(filter %$*.tar,$(PVDRIVERS_URLS))"
 	grep $@ sources|sed 's:$@:$@.UNTRUSTED:' | sha512sum -c -
 	mv $@.UNTRUSTED $@
 
 
-WIX_BINARIES_URL := https://github.com/wixtoolset/wix3/releases/download/wix3111rtm/wix311-binaries.zip
+BINARIES_URL := https://github.com/wixtoolset/wix3/releases/download/wix3111rtm/wix311-binaries.zip \
+		https://web.archive.org/web/20100818223107/http://download.microsoft.com/download/9/5/A/95A9616B-7A37-4AF6-BC36-D6EA96C8DAAE/dotNetFx40_Full_x86_x64.exe
 
-WIX_BINARIES := $(notdir $(WIX_BINARIES_URL))
+BINARIES := $(notdir $(BINARIES_URL))
 
-$(WIX_BINARIES):
-	wget -O $@.UNTRUSTED $(WIX_BINARIES_URL)
-	grep $@ sources|sed 's:$@:$@.UNTRUSTED:' | sha512sum -c -
-	mv $@.UNTRUSTED $@
+ifneq ($(DISTFILES_MIRROR),)
+BINARIES_URL := $(addprefix $(DISTFILES_MIRROR)/qwt-crossbuild/,$(BINARIES))
+endif
 
-DOTNET_BINARIES_URL := https://web.archive.org/web/20100818223107/http://download.microsoft.com/download/9/5/A/95A9616B-7A37-4AF6-BC36-D6EA96C8DAAE/dotNetFx40_Full_x86_x64.exe
-
-DOTNET_BINARIES := $(notdir $(DOTNET_BINARIES_URL))
-
-$(DOTNET_BINARIES):
-	wget -O $@.UNTRUSTED $(DOTNET_BINARIES_URL)
+$(BINARIES):
+	$(FETCH_CMD) $@.UNTRUSTED $(filter %/$@,$(BINARIES_URL))
 	grep $@ sources|sed 's:$@:$@.UNTRUSTED:' | sha512sum -c -
 	mv $@.UNTRUSTED $@
 
@@ -76,7 +72,7 @@ $(DEVCON):
 	cd devcon.UNTRUSTED/setup/ && cat sources.devcon | sha512sum -c -
 	tar -czf $(DEVCON) -C devcon.UNTRUSTED/setup devcon
 
-get-sources: $(FILES) $(WIX_BINARIES) $(DOTNET_BINARIES) $(DEVCON)
+get-sources: $(PVDRIVERS) $(BINARIES) $(DEVCON)
 get-sources:
 	git submodule update --init --recursive
 
