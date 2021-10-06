@@ -29,3 +29,18 @@ sudo losetup -f /usr/lib/qubes/qubes-windows-tools.iso
 dom0: qvm-start [windows-qube-name] --cdrom [dispXXXX]:loop0
 ```
 
+
+## Build using Visual Studio 2019
+
+1. Setup build environment
+
+install VS2019 using Visual Studio Installer, install additional components: Python 3, Windows Driver Kit
+Make sure that Python executable path is in PATH global environment variable
+
+2. Apply patches
+
+Change directory to %projectdir%\VS2019 and start apply_patches.bat
+
+3. Build projects
+
+Start VS2019, open solution %projectdir%\VS2019\qubes-windows-tools-cross.sln and rebuild all
