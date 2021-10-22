@@ -1,0 +1,43 @@
+From 592cb017d4ef008aa10b482aa55582e47f24ee0c Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 22 Oct 2021 11:58:15 +0300
+Subject: [PATCH] filecopy.h: Fix warning: the current #pragma pack alignment
+ value is modified in the included file.
+
+---
+ src/qrexec-services/common/filecopy.h | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/qrexec-services/common/filecopy.h b/src/qrexec-services/common/filecopy.h
+index 80af463..7fc618f 100644
+--- a/src/qrexec-services/common/filecopy.h
++++ b/src/qrexec-services/common/filecopy.h
+@@ -44,21 +44,23 @@ struct file_header
+     */
+ };
+ 
+-#pragma pack(1)
++#pragma pack(push, 1)
+ struct result_header
+ {
+     UINT32 error_code;
+     UINT32 _pad;
+     UINT64 crc32;
+ };
++#pragma pack(pop)
+ 
+ /* optional info about last processed file */
+-#pragma pack(1)
++#pragma pack(push, 1)
+ struct result_header_ext
+ {
+     UINT32 last_namelen;
+     char last_name[0];
+ };
++#pragma pack(pop)
+ 
+ typedef enum _FC_COPY_STATUS
+ {
+-- 
+2.33.1.windows.1
+

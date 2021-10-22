@@ -1,0 +1,53 @@
+From 14ba3c450936d7eff226cb49ba61724b70afecf6 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 22 Oct 2021 12:06:44 +0300
+Subject: [PATCH] Fix warnings: comparison of constant with expression of type
+ 'const char'.
+
+---
+ src/qrexec-agent/qrexec-agent.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index a08678c..f81dcc7 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -178,17 +178,17 @@ static DWORD Utf8WithBomToUtf16(IN const char *stringUtf8, IN size_t cbStringUtf
+     *stringUtf16 = NULL;
+ 
+     // see http://en.wikipedia.org/wiki/Byte-order_mark for explanation of the BOM encoding
+-    if (cbStringUtf8 >= 3 && stringUtf8[0] == 0xEF && stringUtf8[1] == 0xBB && stringUtf8[2] == 0xBF)
++    if (cbStringUtf8 >= 3 && stringUtf8[0] == (char)0xEF && stringUtf8[1] == (char)0xBB && stringUtf8[2] == (char)0xBF)
+     {
+         // UTF-8
+         cbSkipChars = 3;
+     }
+-    else if (cbStringUtf8 >= 2 && stringUtf8[0] == 0xFE && stringUtf8[1] == 0xFF)
++    else if (cbStringUtf8 >= 2 && stringUtf8[0] == (char)0xFE && stringUtf8[1] == (char)0xFF)
+     {
+         // UTF-16BE
+         return ERROR_NOT_SUPPORTED;
+     }
+-    else if (cbStringUtf8 >= 2 && stringUtf8[0] == 0xFF && stringUtf8[1] == 0xFE)
++    else if (cbStringUtf8 >= 2 && stringUtf8[0] == (char)0xFF && stringUtf8[1] == (char)0xFE)
+     {
+         // UTF-16LE
+         cbSkipChars = 2;
+@@ -208,12 +208,12 @@ static DWORD Utf8WithBomToUtf16(IN const char *stringUtf8, IN size_t cbStringUtf
+         *stringUtf16 = bufferUtf16;
+         return ERROR_SUCCESS;
+     }
+-    else if (cbStringUtf8 >= 4 && stringUtf8[0] == 0 && stringUtf8[1] == 0 && stringUtf8[2] == 0xFE && stringUtf8[3] == 0xFF)
++    else if (cbStringUtf8 >= 4 && stringUtf8[0] == 0 && stringUtf8[1] == 0 && stringUtf8[2] == (char)0xFE && stringUtf8[3] == (char)0xFF)
+     {
+         // UTF-32BE
+         return ERROR_NOT_SUPPORTED;
+     }
+-    else if (cbStringUtf8 >= 4 && stringUtf8[0] == 0xFF && stringUtf8[1] == 0xFE && stringUtf8[2] == 0 && stringUtf8[3] == 0)
++    else if (cbStringUtf8 >= 4 && stringUtf8[0] == (char)0xFF && stringUtf8[1] == (char)0xFE && stringUtf8[2] == 0 && stringUtf8[3] == 0)
+     {
+         // UTF-32LE
+         return ERROR_NOT_SUPPORTED;
+-- 
+2.33.1.windows.1
+

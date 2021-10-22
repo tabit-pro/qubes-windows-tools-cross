@@ -1,0 +1,453 @@
+From 42f9e7838e48bff8cef870cc8b59c4dbf33fdcf0 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 22 Oct 2021 12:06:20 +0300
+Subject: [PATCH] qrexec-agent: call ServiceCleanup when ServiceExecutionThread
+ is stopped.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This fixes issue with QrexecAgent service inoperability after service restart.
+---
+ src/qrexec-agent/qrexec-agent.c | 154 +++++++++++++++++++++-----------
+ 1 file changed, 102 insertions(+), 52 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index d04c59d..a08678c 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -42,8 +42,6 @@
+ #include <pipe-server.h>
+ #include <list.h>
+ 
+-libvchan_t *g_DaemonVchan;
+-
+ CRITICAL_SECTION g_DaemonCriticalSection;
+ CRITICAL_SECTION g_RequestCriticalSection;
+ 
+@@ -51,6 +49,17 @@ PIPE_SERVER g_PipeServer = NULL; // for handling qrexec-client-vm requests
+ LIST_ENTRY g_RequestList; // pending service requests (local)
+ ULONG g_RequestId = 0;
+ 
++struct service_execution_context_t
++{
++    libvchan_t *vchan;
++};
++
++struct client_connected_callback_context_t
++{
++    LONGLONG client_id;
++    struct service_execution_context_t *service_context;
++};
++
+ #ifdef _DEBUG
+ void DumpRequestList(void)
+ {
+@@ -575,7 +584,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
+  * @param bufferSize Size of the exec params (variable, includes command line).
+  * @return Exec params on success or NULL. Must be freed by the caller.
+  */
+-struct exec_params *ReceiveExecParams(IN int bufferSize)
++static struct exec_params *ReceiveExecParams(IN struct service_execution_context_t *service_context, IN int bufferSize)
+ {
+     struct exec_params *params;
+ 
+@@ -586,7 +595,7 @@ struct exec_params *ReceiveExecParams(IN int bufferSize)
+     if (!params)
+         return NULL;
+ 
+-    if (!VchanReceiveBuffer(g_DaemonVchan, params, bufferSize, L"exec_params"))
++    if (!VchanReceiveBuffer(service_context->vchan, params, bufferSize, L"exec_params"))
+     {
+         free(params);
+         return NULL;
+@@ -710,7 +719,7 @@ static PSERVICE_REQUEST FindServiceRequest(
+  * @param header Qrexec header with data connection parameters.
+  * @return Error code.
+  */
+-DWORD HandleServiceConnect(IN const struct msg_header *header)
++DWORD HandleServiceConnect(IN struct service_execution_context_t *service_context, IN const struct msg_header *header)
+ {
+     DWORD status;
+     struct exec_params *params = NULL;
+@@ -718,7 +727,7 @@ DWORD HandleServiceConnect(IN const struct msg_header *header)
+ 
+     LogDebug("msg 0x%x, len %d", header->type, header->len);
+ 
+-    params = ReceiveExecParams(header->len);
++    params = ReceiveExecParams(service_context, header->len);
+     if (!params)
+     {
+         LogError("ReceiveCmdline failed");
+@@ -758,14 +767,14 @@ cleanup:
+ * @param header Qrexec header with refused request id.
+ * @return Error code.
+ */
+-DWORD HandleServiceRefused(IN const struct msg_header *header)
++DWORD HandleServiceRefused(IN struct service_execution_context_t *service_context, IN const struct msg_header *header)
+ {
+     struct service_params serviceParams;
+     PSERVICE_REQUEST context;
+ 
+     LogDebug("msg 0x%x, len %d", header->type, header->len);
+ 
+-    if (!VchanReceiveBuffer(g_DaemonVchan, &serviceParams, header->len, L"service_params"))
++    if (!VchanReceiveBuffer(service_context->vchan, &serviceParams, header->len, L"service_params"))
+         return ERROR_INVALID_FUNCTION;
+ 
+     LogDebug("request id '%S'", serviceParams.ident);
+@@ -800,7 +809,7 @@ DWORD HandleServiceRefused(IN const struct msg_header *header)
+  * @param runInteractively Determines whether the local command should be run in the interactive session.
+  * @return Exec params on success (even if parsing command line fails). Must be freed by the caller.
+  */
+-struct exec_params *HandleExecCommon(IN int bufferSize, OUT WCHAR **userName, OUT WCHAR **commandLine, OUT BOOL *runInteractively)
++static struct exec_params *HandleExecCommon(IN struct service_execution_context_t *service_context, IN int bufferSize, OUT WCHAR **userName, OUT WCHAR **commandLine, OUT BOOL *runInteractively)
+ {
+     struct exec_params *exec = NULL;
+     DWORD status;
+@@ -808,7 +817,7 @@ struct exec_params *HandleExecCommon(IN int bufferSize, OUT WCHAR **userName, OU
+     WCHAR *remoteDomainName = NULL;
+     WCHAR *serviceCommandLine = NULL;
+ 
+-    exec = ReceiveExecParams(bufferSize);
++    exec = ReceiveExecParams(service_context, bufferSize);
+     if (!exec)
+     {
+         LogError("ReceiveCmdline failed");
+@@ -871,7 +880,7 @@ struct exec_params *HandleExecCommon(IN int bufferSize, OUT WCHAR **userName, OU
+  * @param piped Determines whether the local executable's I/O should be connected to data vchan.
+  * @return Error code.
+  */
+-static DWORD HandleExec(IN const struct msg_header *header, BOOL piped)
++static DWORD HandleExec(IN struct service_execution_context_t *service_context, IN const struct msg_header *header, BOOL piped)
+ {
+     DWORD status;
+     WCHAR *userName = NULL;
+@@ -881,7 +890,7 @@ static DWORD HandleExec(IN const struct msg_header *header, BOOL piped)
+ 
+     LogVerbose("msg 0x%x, len %d", header->type, header->len);
+ 
+-    exec = HandleExecCommon(header->len, &userName, &commandLine, &interactive);
++    exec = HandleExecCommon(service_context, header->len, &userName, &commandLine, &interactive);
+     if (!exec)
+         return ERROR_INVALID_FUNCTION;
+ 
+@@ -911,7 +920,7 @@ static DWORD HandleExec(IN const struct msg_header *header, BOOL piped)
+  * @param header Qrexec header.
+  * @return Error code.
+  */
+-static DWORD HandleDaemonHello(struct msg_header *header)
++static DWORD HandleDaemonHello(IN struct service_execution_context_t *service_context, struct msg_header *header)
+ {
+     struct peer_info info;
+ 
+@@ -922,7 +931,7 @@ static DWORD HandleDaemonHello(struct msg_header *header)
+     }
+ 
+     // read protocol version
+-    if (!VchanReceiveBuffer(g_DaemonVchan, &info, sizeof(info), L"peer info"))
++    if (!VchanReceiveBuffer(service_context->vchan, &info, sizeof(info), L"peer info"))
+         return ERROR_INVALID_FUNCTION;
+ 
+     if (info.version != QREXEC_PROTOCOL_VERSION)
+@@ -941,31 +950,31 @@ static DWORD HandleDaemonHello(struct msg_header *header)
+  * @brief Handle control message from vchan.
+  * @return Error code.
+  */
+-static DWORD HandleDaemonMessage(void)
++static DWORD HandleDaemonMessage(IN struct service_execution_context_t *service_context)
+ {
+     struct msg_header header;
+ 
+     LogVerbose("start");
+ 
+-    if (!VchanReceiveBuffer(g_DaemonVchan, &header, sizeof header, L"daemon header"))
++    if (!VchanReceiveBuffer(service_context->vchan, &header, sizeof(header), L"daemon header"))
+         return win_perror2(ERROR_INVALID_FUNCTION, "VchanReceiveBuffer");
+ 
+     switch (header.type)
+     {
+     case MSG_HELLO:
+-        return HandleDaemonHello(&header);
++        return HandleDaemonHello(service_context, &header);
+ 
+     case MSG_SERVICE_CONNECT:
+-        return HandleServiceConnect(&header);
++        return HandleServiceConnect(service_context, &header);
+ 
+     case MSG_SERVICE_REFUSED:
+-        return HandleServiceRefused(&header);
++        return HandleServiceRefused(service_context, &header);
+ 
+     case MSG_EXEC_CMDLINE:
+-        return HandleExec(&header, TRUE);
++        return HandleExec(service_context, &header, TRUE);
+ 
+     case MSG_JUST_EXEC:
+-        return HandleExec(&header, FALSE);
++        return HandleExec(service_context, &header, FALSE);
+ 
+     default:
+         LogWarning("unknown message type: 0x%x", header.type);
+@@ -978,9 +987,9 @@ static DWORD HandleDaemonMessage(void)
+  * @param stopEvent When this event is signaled, the function should exit.
+  * @return Error code.
+  */
+-static DWORD WatchForEvents(HANDLE stopEvent)
++static DWORD WatchForEvents(struct service_execution_context_t *service_context, HANDLE stopEvent)
+ {
+-    DWORD signaledEvent;
++    DWORD signaledEvent = WAIT_FAILED;
+     DWORD status = ERROR_INVALID_FUNCTION;
+     BOOL run = TRUE;
+     BOOL daemonConnected = FALSE;
+@@ -996,16 +1005,16 @@ static DWORD WatchForEvents(HANDLE stopEvent)
+ 
+     // We give a 5 minute timeout here because xeniface can take some time
+     // to load the first time after reboot after pvdrivers installation.
+-    g_DaemonVchan = VchanInitServer(0, VCHAN_BASE_PORT, VCHAN_BUFFER_SIZE, 5 * 60 * 1000);
++    service_context->vchan = VchanInitServer(0, VCHAN_BASE_PORT, VCHAN_BUFFER_SIZE, 5 * 60 * 1000);
+ 
+-    if (!g_DaemonVchan)
++    if (!service_context->vchan)
+         return win_perror2(ERROR_INVALID_FUNCTION, "VchanInitServer");
+ 
+-    LogDebug("port %d: daemon vchan = %p", VCHAN_BASE_PORT, g_DaemonVchan);
+-    LogInfo("Waiting for qrexec daemon connection, write buffer size: %d", VchanGetWriteBufferSize(g_DaemonVchan));
++    LogDebug("port %d: daemon vchan = %p", VCHAN_BASE_PORT, service_context->vchan);
++    LogInfo("Waiting for qrexec daemon connection, write buffer size: %d", VchanGetWriteBufferSize(service_context->vchan));
+ 
+     waitObjects[0] = stopEvent;
+-    waitObjects[1] = libvchan_fd_for_select(g_DaemonVchan);
++    waitObjects[1] = libvchan_fd_for_select(service_context->vchan);
+ 
+     while (run)
+     {
+@@ -1033,19 +1042,19 @@ static DWORD WatchForEvents(HANDLE stopEvent)
+         }
+ 
+         // control vchan event
+-        EnterCriticalSection(&g_DaemonCriticalSection);
+         if (!daemonConnected)
+         {
+-            LogInfo("qrexec-daemon has connected (event %d)");
++            LogInfo("qrexec-daemon has connected (event %d)", (int)signaledEvent);
+ 
+-            if (!VchanSendHello(g_DaemonVchan))
++            if (!VchanSendHello(service_context->vchan))
+             {
+                 LogError("failed to send hello to daemon");
+-                goto out;
++                libvchan_close(service_context->vchan);
++                service_context->vchan = NULL;
++                continue;
+             }
+ 
+             daemonConnected = TRUE;
+-            LeaveCriticalSection(&g_DaemonCriticalSection);
+ 
+             // advertise tools presence to dom0 by writing appropriate entries to qubesdb
+             // it waits for user logon
+@@ -1062,33 +1071,32 @@ static DWORD WatchForEvents(HANDLE stopEvent)
+             continue;
+         }
+ 
+-        if (!libvchan_is_open(g_DaemonVchan)) // vchan broken
++        if (VCHAN_DISCONNECTED == libvchan_is_open(service_context->vchan)) // vchan broken
+         {
+             LogWarning("vchan broken");
+-            LeaveCriticalSection(&g_DaemonCriticalSection);
+             break;
+         }
+ 
+         // handle data from daemon
+-        while (VchanGetReadBufferSize(g_DaemonVchan) > 0)
++        while (VchanGetReadBufferSize(service_context->vchan) > 0)
+         {
+-            status = HandleDaemonMessage();
++            status = HandleDaemonMessage(service_context);
+             if (ERROR_SUCCESS != status)
+             {
+                 run = FALSE;
+                 win_perror2(status, "HandleDaemonMessage");
+-                goto out;
++                continue;
+             }
+         }
+-
+-    out:
+-        LeaveCriticalSection(&g_DaemonCriticalSection);
+     }
+ 
+     LogVerbose("loop finished");
+ 
+     if (daemonConnected)
+-        libvchan_close(g_DaemonVchan);
++    {
++        libvchan_close(service_context->vchan);
++        service_context->vchan = NULL;
++    }
+ 
+     return status;
+ }
+@@ -1118,11 +1126,13 @@ static void XifLogger(int level, const char *function, const WCHAR *format, va_l
+ 
+ /**
+  * @brief Thread servicing a single qrexec-client-vm
+- * @param param Pipe server client id.
++ * @param param client_connected_callback_context
+  */
+-DWORD WINAPI PipeClientThread(PVOID param)
++static DWORD WINAPI PipeClientThread(PVOID param)
+ {
+-    LONGLONG clientId = (LONGLONG)param;
++    struct client_connected_callback_context_t *ctx = param;
++    LONGLONG clientId = ctx->client_id;
++    struct service_execution_context_t *service_context = ctx->service_context;
+     DWORD status = ERROR_NOT_ENOUGH_MEMORY;
+     PSERVICE_REQUEST context;
+     size_t commandSize;
+@@ -1167,7 +1177,7 @@ DWORD WINAPI PipeClientThread(PVOID param)
+     QpsDisconnectClient(g_PipeServer, clientId);
+ 
+     StringCbPrintfA(context->ServiceParams.request_id.ident, sizeof(context->ServiceParams.request_id.ident), "%lu", g_RequestId++);
+-    if (!VchanSendMessage(g_DaemonVchan, MSG_TRIGGER_SERVICE, &context->ServiceParams, sizeof(context->ServiceParams), L"trigger_service_params"))
++    if (!VchanSendMessage(service_context->vchan, MSG_TRIGGER_SERVICE, &context->ServiceParams, sizeof(context->ServiceParams), L"trigger_service_params"))
+     {
+         LogError("sending trigger params to daemon failed");
+         status = ERROR_INVALID_FUNCTION;
+@@ -1189,6 +1199,8 @@ cleanup:
+             free(context->CommandLine);
+         free(context);
+     }
++    if (ctx)
++        free(ctx);
+     return status;
+ }
+ 
+@@ -1196,13 +1208,23 @@ cleanup:
+  * @brief Pipe server callback: client connected.
+  * @param server Pipe server.
+  * @param id Client id.
+- * @param context User context (unused).
++ * @param context User context (client_connected_callback_context *)
+  */
+ void ClientConnectedCallback(PIPE_SERVER server, LONGLONG id, PVOID context)
+ {
++    (void)server;
++    (void)context;
+     HANDLE clientThread;
++    struct client_connected_callback_context_t *ctx = malloc(sizeof(struct client_connected_callback_context_t));
++    if (!ctx) {
++        LogError("no memory");
++        QpsDisconnectClient(server, id);
++        return;
++    }
++    ctx->client_id = id;
++    ctx->service_context = context;
+ 
+-    clientThread = CreateThread(NULL, 0, PipeClientThread, (PVOID)id, 0, NULL);
++    clientThread = CreateThread(NULL, 0, PipeClientThread, ctx, 0, NULL);
+     if (!clientThread)
+     {
+         win_perror("create client thread");
+@@ -1218,11 +1240,14 @@ void ClientConnectedCallback(PIPE_SERVER server, LONGLONG id, PVOID context)
+  */
+ DWORD WINAPI PipeServerThread(PVOID param)
+ {
++    (void)param;
+     // only returns on error
+     LogVerbose("start");
+     return QpsMainLoop(g_PipeServer);
+ }
+ 
++DWORD WINAPI ServiceCleanup(void *param);
++
+ /**
+  * @brief Service worker thread.
+  * @param param Worker context.
+@@ -1236,6 +1261,7 @@ DWORD WINAPI ServiceExecutionThread(void *param)
+     PSECURITY_DESCRIPTOR sd;
+     PACL acl;
+     SECURITY_ATTRIBUTES sa = { 0 };
++    struct service_execution_context_t *context = ctx->UserContext;
+ 
+     LogInfo("Service started");
+ 
+@@ -1256,7 +1282,7 @@ DWORD WINAPI ServiceExecutionThread(void *param)
+                        ClientConnectedCallback,
+                        NULL,
+                        NULL,
+-                       NULL,
++                       context, //callback context
+                        &sa,
+                        &g_PipeServer);
+ 
+@@ -1274,16 +1300,22 @@ DWORD WINAPI ServiceExecutionThread(void *param)
+ 
+     LogVerbose("pipe thread: %p, entering loop", pipeServerThread);
+ 
+-    status = WatchForEvents(ctx->StopEvent);
++    status = WatchForEvents(context, ctx->StopEvent);
+     if (ERROR_SUCCESS != status)
+         win_perror2(status, "WatchForEvents");
+ 
++   ServiceCleanup(context);
+ // FIXME: pipe server doesn't have the ability for graceful stop
+ 
+     LogDebug("Waiting for the pipe server thread to exit");
+     if (WaitForSingleObject(pipeServerThread, 1000) != WAIT_OBJECT_0)
++    {
+         TerminateThread(pipeServerThread, 0);
+-    CloseHandle(pipeServerThread);
++        LogDebug("after pipe server thread terminate");
++        CloseHandle(pipeServerThread);
++        QpsDestroy(g_PipeServer);
++        g_PipeServer = NULL;
++    }
+ 
+     LocalFree(acl);
+     LocalFree(sd);
+@@ -1293,8 +1325,24 @@ DWORD WINAPI ServiceExecutionThread(void *param)
+     return ERROR_SUCCESS;
+ }
+ 
++DWORD WINAPI ServiceCleanup(void *param)
++{
++    LogInfo("ServiceCleanup: %p", param);
++    struct service_execution_context_t *service_context = param;
++    if (!service_context)
++        return ERROR_SUCCESS;
++    if (service_context->vchan)
++    {
++        libvchan_close(service_context->vchan);
++        service_context->vchan = NULL;
++    }
++    return ERROR_SUCCESS;
++}
++
+ int __cdecl wmain(int argc, WCHAR *argv[])
+ {
++    (void)argc;
++    (void)argv;
+     DWORD status;
+ 
+ #ifdef _DEBUG
+@@ -1306,11 +1354,13 @@ int __cdecl wmain(int argc, WCHAR *argv[])
+     InitializeCriticalSection(&g_RequestCriticalSection);
+     InitializeListHead(&g_RequestList);
+ 
++    struct service_execution_context_t context;
++    RtlSecureZeroMemory(&context, sizeof(context));
+     status = SvcMainLoop(
+         SERVICE_NAME,
+         0,
+         ServiceExecutionThread,
+-        NULL,
++        &context, // // worker thread context
+         NULL,
+         NULL);
+ 
+-- 
+2.33.1.windows.1
+

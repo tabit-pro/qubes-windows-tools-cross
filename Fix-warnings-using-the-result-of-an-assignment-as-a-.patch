@@ -1,0 +1,35 @@
+From bc638dbf5be0b30ce3b43dfd4d9a2db54e4d4af6 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 22 Oct 2021 12:07:39 +0300
+Subject: [PATCH] Fix warnings: using the result of an assignment as a
+ condition without parentheses.
+
+---
+ src/qrexec-agent/qrexec-agent.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index f81dcc7..fcc13d4 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -250,7 +250,7 @@ WCHAR* StrReplace(WCHAR const * const original,
+     size_t retlen;
+ 
+     // find how many times the pattern occurs in the original string
+-    for (oriptr = original; patloc = wcsstr(oriptr, pattern); oriptr = patloc + patlen)
++    for (oriptr = original; (patloc = wcsstr(oriptr, pattern)) != NULL; oriptr = patloc + patlen)
+     {
+         patcnt++;
+     }
+@@ -265,7 +265,7 @@ WCHAR* StrReplace(WCHAR const * const original,
+     // copy the original string,
+     // replacing all the instances of the pattern
+     retptr = returned;
+-    for (oriptr = original; patloc = wcsstr(oriptr, pattern); oriptr = patloc + patlen)
++    for (oriptr = original; (patloc = wcsstr(oriptr, pattern)) != NULL; oriptr = patloc + patlen)
+     {
+         size_t const skplen = patloc - oriptr;
+         // copy the section until the occurence of the pattern
+-- 
+2.33.1.windows.1
+

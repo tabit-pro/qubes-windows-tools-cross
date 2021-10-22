@@ -1,0 +1,35 @@
+From 613d80fdc6a5b3a744c75218c93fe0130623e550 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 22 Oct 2021 12:08:14 +0300
+Subject: [PATCH] Fix warnings: Call to function 'memset' is insecure as it
+ does not provide security checks introduced in the C11 standard.
+
+---
+ src/qrexec-agent/qrexec-agent.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index fcc13d4..bb2b946 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -419,7 +419,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
+ 
+         // build RPC service config file path
+         // FIXME: use shell path APIs
+-        ZeroMemory(serviceFilePath, sizeof(serviceFilePath));
++        RtlSecureZeroMemory(serviceFilePath, sizeof(serviceFilePath));
+         if (!GetModuleFileName(NULL, serviceFilePath, MAX_PATH))
+         {
+             status = GetLastError();
+@@ -507,7 +507,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
+         }
+ 
+         cbRead = 0;
+-        ZeroMemory(serviceConfigContents, sizeof(serviceConfigContents));
++        RtlSecureZeroMemory(serviceConfigContents, sizeof(serviceConfigContents));
+ 
+         if (!ReadFile(serviceConfigFile, serviceConfigContents, sizeof(WCHAR) * MAX_PATH, &cbRead, NULL))
+         {
+-- 
+2.33.1.windows.1
+

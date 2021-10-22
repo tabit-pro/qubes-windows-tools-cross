@@ -1,0 +1,50 @@
+From d165caad35d281fff02b1f57b517a5765ebce6e9 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 22 Oct 2021 12:09:36 +0300
+Subject: [PATCH] Add checks for StringCchCopy()/StringCchCat()
+
+---
+ src/qrexec-agent/qrexec-agent.c | 22 +++++++++++++++++++---
+ 1 file changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index d9a595a..4112466 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -549,14 +549,30 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
+         }
+         else
+         {
+-            StringCchCopy(serviceFilePath, MAX_PATH + 1, rawServiceFilePath);
++            if (FAILED(StringCchCopy(serviceFilePath, MAX_PATH + 1, rawServiceFilePath)))
++            {
++                LogError("Failed to copy file path '%s'", rawServiceFilePath);
++                free(*sourceDomainName);
++                return RPC_S_STRING_TOO_LONG;
++            }
+         }
+ 
+         PathQuoteSpaces(serviceFilePath);
+         if (serviceArgs && serviceArgs[0] != L'\0')
+         {
+-            StringCchCat(serviceFilePath, MAX_PATH + 1, L" ");
+-            StringCchCat(serviceFilePath, MAX_PATH + 1, serviceArgs);
++            if (FAILED(StringCchCat(serviceFilePath, MAX_PATH + 1, L" ")))
++            {
++                LogError("Failed to cat '%s'", serviceFilePath);
++                free(*sourceDomainName);
++                return RPC_S_STRING_TOO_LONG;
++            }
++
++            if (FAILED(StringCchCat(serviceFilePath, MAX_PATH + 1, serviceArgs)))
++            {
++                LogError("Failed to cat '%s'", serviceArgs);
++                free(*sourceDomainName);
++                return RPC_S_STRING_TOO_LONG;
++            }
+         }
+ 
+         free(rawServiceFilePath);
+-- 
+2.33.1.windows.1
+

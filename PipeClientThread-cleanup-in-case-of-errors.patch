@@ -1,0 +1,33 @@
+From 877e5004cfe5b7ff51a7d5612d580fc0895f3bd1 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 22 Oct 2021 12:09:58 +0300
+Subject: [PATCH] PipeClientThread: cleanup in case of errors
+
+---
+ src/qrexec-agent/qrexec-agent.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index 4112466..d0afe0a 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -1176,14 +1176,14 @@ static DWORD WINAPI PipeClientThread(PVOID param)
+     context->CommandLine = malloc(commandSize);
+     if (!context->CommandLine)
+     {
+-        return ERROR_NOT_ENOUGH_MEMORY;
++        status = ERROR_NOT_ENOUGH_MEMORY;
+         goto cleanup;
+     }
+ 
+     status = QpsRead(g_PipeServer, clientId, context->CommandLine, (DWORD)commandSize);
+     if (ERROR_SUCCESS != status)
+     {
+-        return win_perror2(status, "QpsRead(cmd)");
++        win_perror2(status, "QpsRead(cmd)");
+         goto cleanup;
+     }
+ 
+-- 
+2.33.1.windows.1
+

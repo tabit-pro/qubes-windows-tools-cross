@@ -22,5 +22,14 @@ patch -Nfs -p1 < qwt-wait-for-process.patch
 
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-daemon-fix-build-using-VS2019.patch
 
+patch -Nfs -d qubes-core-agent-windows -p1 < qrexec-agent-call-ServiceCleanup-when-ServiceExecuti.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < filecopy.h-Fix-warning-the-current-pragma-pack-align.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < Fix-warnings-comparison-of-constant-with-expression-.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < Fix-warnings-using-the-result-of-an-assignment-as-a-.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < Fix-warnings-Call-to-function-memset-is-insecure-as-.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < Fix-whitespaces-Fix-typos.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < Add-checks-for-StringCchCopy-StringCchCat.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < PipeClientThread-cleanup-in-case-of-errors.patch
+
 popd
 
