@@ -4,7 +4,8 @@ Here is short how-to instructions to build using disposable VM in Qubes R4.1 pre
 
 1. Setup build environment
 ```
-sudo dnf install git make mock
+cd ~
+sudo dnf -y install git make mock
 git clone https://github.com/QubesOS/qubes-builder
 cd qubes-builder
 make install-deps
@@ -19,7 +20,7 @@ make BUILDERCONF=example-configs/qubes-os-r4.1.conf BASEURL=https://github.com G
 ```
 make BUILDERCONF=example-configs/qubes-os-r4.1.conf COMPONENTS=windows-tools-cross windows-tools-cross-dom0
 ```
-4. Extract result package in disposable VM to get temporary CDROM device available
+4. Extract result package in disposable VM to get temporary CDROM device available [Note: you may need to add --nosignature to the rpm invocation to extract the ISO.]
 ```
 sudo rpm -Uhv qubes-packages-mirror-repo/dom0-fc32/rpm/qubes-windows-tools*.noarch.rpm
 sudo losetup -f /usr/lib/qubes/qubes-windows-tools.iso
