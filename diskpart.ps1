@@ -36,8 +36,11 @@ $fs = New-Object System.IO.FileStream ($handle, 'Read', $true)
 $b = [array]::CreateInstance([byte], $bytecount)
 
 # Instead of real error handling around the Read below we'll...
-# ...pre-populate with data that should fail the empty if not overwritten by a good read
-$b[0] = 255 
+# ...pre-populate with data that should fail the empty test if not overwritten by a good read
+For($i=0;$i -le ($maxunexpected+1);$i++)
+{
+        $b[$i] = 255
+}
 
 # Read raw volume data into array and clean up object
 $fs.Read($b, 0, $bytecount) | Out-Null
