@@ -504,6 +504,7 @@ ConfigurableDirectory="INSTALLDIR"
     Id="MoveProfiles"
     AllowAdvertise="no"
     Absent="allow"
+    Level="1001"
     Title="Move user profiles"
     Description="Moves user profiles directory (c:\Users) to the HVM&amp;s private disk (private.img)."
     >
