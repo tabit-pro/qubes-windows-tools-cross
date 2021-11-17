@@ -1,0 +1,180 @@
+From 73bf9924059814b9e04fdf8b14dfdb3b4553d918 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Wed, 17 Nov 2021 17:54:23 +0300
+Subject: [PATCH] bugfix: advertise-tools issues error when calls
+ cubes.NotifyTools in dom0 due to non-existing dummy process
+
+qrexec-wrapper now acts as local process if local process is "(null)"
+---
+ src/advertise-tools/advertise-tools.c |  2 +-
+ src/qrexec-wrapper/qrexec-wrapper.c   | 89 ++++++++++++++++++++-------
+ 2 files changed, 67 insertions(+), 24 deletions(-)
+
+diff --git a/src/advertise-tools/advertise-tools.c b/src/advertise-tools/advertise-tools.c
+index f485f2d..1fe0a5c 100644
+--- a/src/advertise-tools/advertise-tools.c
++++ b/src/advertise-tools/advertise-tools.c
+@@ -131,7 +131,7 @@ BOOL NotifyDom0(void)
+ 
+     if (!CreateProcess(
+         qrexecClientVmPath,
+-        L"qrexec-client-vm.exe dom0|qubes.NotifyTools|dummy",
++        L"qrexec-client-vm.exe dom0|qubes.NotifyTools|(null)",
+         NULL,
+         NULL,
+         FALSE,
+diff --git a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wrapper.c
+index 761f203..8684b0b 100644
+--- a/src/qrexec-wrapper/qrexec-wrapper.c
++++ b/src/qrexec-wrapper/qrexec-wrapper.c
+@@ -59,7 +59,7 @@ DWORD InitPipe(
+ 
+     LogVerbose("pipe type %d", pipeType);
+ 
+-    ZeroMemory(pipeData, sizeof(*pipeData));
++    RtlSecureZeroMemory(pipeData, sizeof(*pipeData));
+     sa.nLength = sizeof(sa);
+     sa.bInheritHandle = TRUE;
+     sa.lpSecurityDescriptor = securityDescriptor;
+@@ -691,7 +691,7 @@ libvchan_t *InitVchan(
+     _In_ BOOL isServer
+     )
+ {
+-    libvchan_t *vchan;
++    libvchan_t *vchan = NULL;
+ 
+     if (isServer)
+     {
+@@ -864,6 +864,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
+     BOOL piped, interactive;
+     PWSTR domainName, portStr, flagsStr, userName, commandLine;
+     DWORD status = ERROR_NOT_ENOUGH_MEMORY;
++    BOOL start_local_process = TRUE;
+ 
+     LogVerbose("start");
+ 
+@@ -883,7 +884,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
+     if (!child)
+         goto cleanup;
+ 
+-    ZeroMemory(child, sizeof(*child));
++    RtlSecureZeroMemory(child, sizeof(*child));
+ 
+     InitializeCriticalSection(&g_VchanCs);
+     libvchan_register_logger(XifLogger);
+@@ -896,7 +897,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
+     piped = !!(flags & 0x02);
+     interactive = !!(flags & 0x04);
+ 
+-    LogDebug("domain %d, port %d, user %s, flags 0x%x, cmd '%s'", domain, port, userName, flags, commandLine);
++    LogDebug("domain %d, port %d, user %s, flags 0x%x, cmd '%s', piped: %d", domain, port, userName, flags, commandLine, piped);
+ 
+     status = ERROR_INVALID_FUNCTION;
+     child->Vchan = InitVchan(domain, port, child->IsVchanServer);
+@@ -905,35 +906,76 @@ int __cdecl wmain(int argc, WCHAR *argv[])
+ 
+     if (wcscmp(userName, L"(null)") == 0)
+         userName = NULL;
++    if (wcscmp(commandLine, L"(null)") == 0)
++        start_local_process = FALSE;
++    // LogVerbose("start_local_process: %d", start_local_process);
+ 
+-    status = CreatePublicPipeSecurityDescriptor(&child->PipeSd, &child->PipeAcl);
+-    if (ERROR_SUCCESS != status)
++    if (start_local_process)
+     {
+-        win_perror2(status, "create pipe security descriptor");
+-        goto cleanup;
+-    }
++        status = CreatePublicPipeSecurityDescriptor(&child->PipeSd, &child->PipeAcl);
++        if (ERROR_SUCCESS != status)
++        {
++            win_perror2(status, "create pipe security descriptor");
++            goto cleanup;
++        }
+ 
+-    status = StartChild(child, userName, commandLine, interactive, piped);
+-    if (ERROR_SUCCESS != status)
+-        goto cleanup;
++        status = StartChild(child, userName, commandLine, interactive, piped);
++        if (ERROR_SUCCESS != status)
++            goto cleanup;
+ 
+-    if (piped)
++        if (piped)
++        {
++            child->StdoutThread = CreateThread(NULL, 0, StdoutThread, child, 0, NULL);
++            if (!child->StdoutThread)
++            {
++                status = win_perror("create stdout thread");
++                goto cleanup;
++            }
++
++            child->StderrThread = CreateThread(NULL, 0, StderrThread, child, 0, NULL);
++            if (!child->StderrThread)
++            {
++                status = win_perror("create stderr thread");
++                goto cleanup;
++            }
++
++            status = EventLoop(child);
++        }
++    }
++    else
+     {
+-        child->StdoutThread = CreateThread(NULL, 0, StdoutThread, child, 0, NULL);
+-        if (!child->StdoutThread)
++        // !start_local_process
++        status = ERROR_SUCCESS;
++        DWORD signaled = WaitForSingleObject(libvchan_fd_for_select(child->Vchan), INFINITE);
++        // LogVerbose("after WaitForSingleObject: signaled: %d", signaled);
++        if (signaled != WAIT_OBJECT_0)
+         {
+-            status = win_perror("create stdout thread");
+-            goto cleanup;
++            status = (DWORD)-1;
+         }
++        // vchan data ready or disconnected
++        while (TRUE)
++        {
++            if (!libvchan_is_open(child->Vchan))
++            {
++                LogDebug("vchan closed");
++                status = (DWORD)-1;
++                break;
++            }
+ 
+-        child->StderrThread = CreateThread(NULL, 0, StderrThread, child, 0, NULL);
+-        if (!child->StderrThread)
++            while (VchanGetReadBufferSize(child->Vchan) > 0)
++            {
++                status = HandleDataMessage(child);
++                if (status != ERROR_SUCCESS)
++                    status = (DWORD)-2;
++            }
++            break;
++        }
++        int exitCode = status != ERROR_SUCCESS ? -1 : ERROR_SUCCESS;
++        if (!VchanSendExitCode(child, exitCode))
+         {
+-            status = win_perror("create stderr thread");
+-            goto cleanup;
++            LogError("sending exit code failed");
++            status = (DWORD)-1;
+         }
+-
+-        status = EventLoop(child);
+     }
+ 
+ cleanup:
+@@ -951,6 +993,7 @@ cleanup:
+             }
+             libvchan_close(child->Vchan);
+         }
++        free(child);
+     }
+ 
+     return status;
+-- 
+2.34.0.windows.1
+

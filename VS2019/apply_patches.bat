@@ -30,6 +30,7 @@ patch -Nfs -d qubes-core-agent-windows -p1 < Fix-warnings-Call-to-function-memse
 patch -Nfs -d qubes-core-agent-windows -p1 < Fix-whitespaces-Fix-typos.patch
 patch -Nfs -d qubes-core-agent-windows -p1 < Add-checks-for-StringCchCopy-StringCchCat.patch
 patch -Nfs -d qubes-core-agent-windows -p1 < PipeClientThread-cleanup-in-case-of-errors.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < bugfix-advertise-tools-issues-error-when-calls-cubes.patch
 
 popd
 
