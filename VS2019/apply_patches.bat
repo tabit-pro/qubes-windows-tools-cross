@@ -23,5 +23,7 @@ patch -Nfs -p1 < qwt-wait-for-process.patch
 
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-daemon-fix-build-using-VS2019.patch
 
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-qrexec-agent-fix-service-shutdown.patch
+
 popd
 
