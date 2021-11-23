@@ -11,6 +11,7 @@ patch -Nfs -d qubes-vmm-xen-windows-pvdrivers -p1 < qubes-vmm-xen-windows-pvdriv
 patch -Nfs -d qubes-vmm-xen-win-pvdrivers-xeniface -p1 < qubes-vmm-xen-win-pvdrivers-xeniface-mingw.patch
 patch -Nfs -d qubes-gui-agent-windows -p1 < qubes-gui-agent-windows-destroy.patch
 patch -Nfs -d qubes-gui-agent-windows -p1 < qubes-gui-agent-windows-watchdog-disable-session-change.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < Bugfix-advertise-tools-issues-error-when-calls-qubes.patch
 
 @rem %patch0 -p1
 patch -Nfs -p0 < qubes-core-agent-windows-warn-incompat-proto.patch
