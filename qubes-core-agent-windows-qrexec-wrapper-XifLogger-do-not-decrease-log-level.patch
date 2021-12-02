@@ -1,0 +1,26 @@
+From 72880dba8cfaca1546b701db7b63308a602ba39e Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Thu, 2 Dec 2021 16:40:24 +0300
+Subject: [PATCH] qrexec-wrapper: XifLogger: do not decrease log level
+
+---
+ src/qrexec-wrapper/qrexec-wrapper.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wrapper.c
+index f9d06ca..1667e3c 100644
+--- a/src/qrexec-wrapper/qrexec-wrapper.c
++++ b/src/qrexec-wrapper/qrexec-wrapper.c
+@@ -673,8 +673,7 @@ static void XifLogger(int level, const char *function, const WCHAR *format, va_l
+     WCHAR buf[1024];
+ 
+     StringCbVPrintfW(buf, sizeof(buf), format, args);
+-    // our log levels start at 0, xif's at 1
+-    _LogFormat(level - 1, FALSE, function, buf);
++    _LogFormat(level, FALSE, function, buf);
+ }
+ 
+ /**
+-- 
+2.34.1.windows.1
+
