@@ -2,7 +2,7 @@
 
 Name:		qubes-windows-tools
 Version:	@VERSION@
-Release:	@REL@
+Release:	1
 Summary:	Qubes Tools for Windows VMs
 Group:		Qubes
 License:	GPL
@@ -89,7 +89,11 @@ unzip -d wix %{S:26}
 cat %{_sourcedir}/devcon.tar.gz | tar -xzvf - -i
 cat %{_sourcedir}/qubes*.tar.gz | tar -xzvf - -i
 cat %{_sourcedir}/xen*.tar | tar -xvf - -i
+
+# set version to Wix source file
+sed -i "s|#VERSION#|%{version}|g" %{S:18}
 cp -f %{S:18} ./
+
 mkdir -p qubes-gui-agent-windows/install-helper/pkihelper/
 cp -f %{S:17} qubes-gui-agent-windows/install-helper/pkihelper/
 mkdir -p include

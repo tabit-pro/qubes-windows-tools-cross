@@ -10,7 +10,7 @@ Name="Qubes Windows Tools"
 UpgradeCode="{FB972F47-0D68-43EF-9820-92FDEB51DCD5}"
 Language="1033"
 Codepage="1252"
-Version="4.1"
+Version="#VERSION#"
 Manufacturer="Invisible Things Lab"
 >
 
