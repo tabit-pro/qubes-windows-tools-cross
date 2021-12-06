@@ -33,6 +33,7 @@ patch -Nfs -d qubes-core-vchan-xen -p1 < qubes-core-vchan-xen-core-vchan-xen-dec
 patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-LogReadLevel-minor-improvements-.patch
 patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-remove-duplicated-error-logging-.patch
 patch -Nfs -d qubes-vmm-xen-windows-pvdrivers/xeniface -p1 < qubes-vmm-xen-windows-pvdrivers-xencontrol-decrease-log-level.patch
+patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-add-xenagent-dependency.patch
 
 popd
 
