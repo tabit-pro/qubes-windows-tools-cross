@@ -45,3 +45,42 @@ Change directory to %projectdir%\VS2019 and start apply_patches.bat
 3. Build projects
 
 Start VS2019, open solution %projectdir%\VS2019\qubes-windows-tools-cross.sln and rebuild all
+
+
+# Logging
+
+QWT settings are stored in the registry in the section  
+HKEY_LOCAL_MACHINE\SOFTWARE\Invisible Things Lab\Qubes Tools
+
+Parameters related to logging:
+
+LogDir: directory for storing .log files  
+LogLevel: log level
+
+Each module can have its own settings for the logging level.  
+Individual parameters of the logging level are stored in the registry in sections
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Invisible Things Lab\Qubes Tools\<module name>
+
+For example, for qrexec-agent.exe, the logging parameters can be described in the registry in the section
+
+HKEY_LOCAL_MACHINE\SOFTWARE\Invisible Things Lab\Qubes Tools\qrexec-agent
+
+An example of a settings file:
+
+```reg
+REGEDIT4
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Invisible Things Lab\Qubes Tools]
+"LogDir"="Q:\\QubesLog"
+"LogLevel"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Invisible Things Lab\Qubes Tools\advertise-tools]
+"LogLevel"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Invisible Things Lab\Qubes Tools\qrexec-wrapper]
+"LogLevel"=dword:00000005
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Invisible Things Lab\Qubes Tools\qrexec-agent]
+"LogLevel"=dword:00000005
+```
