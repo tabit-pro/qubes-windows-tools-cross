@@ -238,7 +238,9 @@ DowngradeErrorMessage="A later version of [ProductName] is already installed. Se
                         ErrorControl="ignore"
                         Interactive="no"
                         Arguments="0"
-                        />
+                        >
+			<ServiceDependency Id='xenagent' />
+			</ServiceInstall>
 
                         <ServiceControl
                         Id="QdbServiceControl"
