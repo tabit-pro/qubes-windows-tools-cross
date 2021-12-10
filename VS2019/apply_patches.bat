@@ -25,5 +25,7 @@ patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-daemon-fix-build-using
 
 patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-qrexec-agent-fix-service-shutdown.patch
 
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-create-scheduled-task-to-sync-clock-on-vm.patch
+
 popd
 

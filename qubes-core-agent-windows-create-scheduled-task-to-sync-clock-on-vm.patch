@@ -1,0 +1,33 @@
+From e407dae6884eac084ee60251bf5b64ad5e94ca77 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 10 Dec 2021 16:58:47 +0300
+Subject: [PATCH] create scheduled task to sync clock on vm
+
+---
+ qubes-core-agent-windows/core-agent-windows.wxs           | 1 +
+ qubes-core-agent-windows/src/qrexec-services/set-time.bat | 1 +
+ 2 files changed, 2 insertions(+)
+ create mode 100644 qubes-core-agent-windows/src/qrexec-services/set-time.bat
+
+diff --git a/qubes-core-agent-windows/core-agent-windows.wxs b/qubes-core-agent-windows/core-agent-windows.wxs
+index 77745db..975b00b 100644
+--- a/qubes-core-agent-windows/core-agent-windows.wxs
++++ b/qubes-core-agent-windows/core-agent-windows.wxs
+@@ -171,6 +171,7 @@ DisplayName='Installation directory'
+                         <File Id='get_image_rgba.exe' Source='bin\$(env.DDK_ARCH)\get-image-rgba.exe'/>
+                         <File Id='window_icon_updater.exe' Source='bin\$(env.DDK_ARCH)\window-icon-updater.exe'/>
+                         <File Id='set_time.ps1' Source='src\qrexec-services\set-time.ps1'/>
++                        <File Id='set_time.bat' Source='src\qrexec-services\set-time.bat'/>
+                         <File Id='open_url.exe' Source='bin\$(env.DDK_ARCH)\open-url.exe'/>
+                     </Component>
+                 </Directory>
+diff --git a/qubes-core-agent-windows/src/qrexec-services/set-time.bat b/qubes-core-agent-windows/src/qrexec-services/set-time.bat
+new file mode 100644
+index 0000000..c222f10
+--- /dev/null
++++ b/qubes-core-agent-windows/src/qrexec-services/set-time.bat
+@@ -0,0 +1 @@
++c:\windows\system32\cmd.exe /c powershell.exe -executionpolicy bypass -noninteractive -inputformat none -file "%QUBES_TOOLS%\qubes-rpc-services\set-time.ps1"
+-- 
+2.34.1.windows.1
+
