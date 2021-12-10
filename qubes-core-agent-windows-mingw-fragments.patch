@@ -95,7 +95,7 @@ diff -pruN a/Makefile b/Makefile
 +TOOLS = $(addprefix $(OUTDIR)/, advertise-tools.exe ask-vm-and-run.exe network-setup.exe prepare-volume.exe qrexec-agent.exe qrexec-client-vm.exe qrexec-wrapper.exe)
 +QREXEC_SERVICES = $(addprefix $(OUTDIR)/, clipboard-copy.exe clipboard-paste.exe file-receiver.exe file-sender.exe get-image-rgba.exe open-in-vm.exe open-url.exe set-gui-mode.exe vm-file-editor.exe wait-for-logon.exe window-icon-updater.exe)
 +RPC_FILES = $(addprefix $(OUTDIR_ANY)/qubes-rpc/,qubes.ClipboardCopy qubes.ClipboardPaste qubes.Filecopy qubes.GetAppMenus qubes.GetImageRGBA qubes.OpenInVM qubes.OpenURL qubes.SetDateTime qubes.SetGuiMode qubes.StartApp qubes.VMShell qubes.WaitForSession)
-+RPC_SCRIPTS = $(addprefix $(OUTDIR_ANY)/, get-appmenus.ps1 set-time.ps1 start-app.ps1)
++RPC_SCRIPTS = $(addprefix $(OUTDIR_ANY)/, get-appmenus.ps1 set-time.bat set-time.ps1 start-app.ps1)
 +
 +
 +all: $(OUTDIR) $(OUTDIR_ANY) $(OUTDIR_ANY)/qubes-rpc $(TOOLS) $(QREXEC_SERVICES) $(RPC_FILES) $(RPC_SCRIPTS) $(OUTDIR_ANY)/service-policy.exe $(OUTDIR_ANY)/service-policy.cfg $(OUTDIR)/relocate-dir.exe
