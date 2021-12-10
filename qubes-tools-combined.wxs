@@ -381,6 +381,21 @@ DowngradeErrorMessage="A later version of [ProductName] is already installed. Se
 <CustomAction Id="Set_DisableSvc" Property="DisableSvc" Value='"cmd.exe" /c "[BinDir]preparation.bat"' />
 <CustomAction Id="DisableSvc" BinaryKey="WixCA" DllEntry="CAQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
 
+<SetProperty Id="CreateScheduledTaskId"
+    Sequence="execute" Before="CreateScheduledTaskId"
+    Value="&quot;[SystemFolder]SCHTASKS.EXE&quot; /CREATE /F /SC MINUTE /MO 1 /TN &quot;QWT\qubes.SetDateTime&quot; /RU [%USERDOMAIN]\[LogonUser] /TR &quot;'[BinDir]qrexec-client-vm.exe' @default|qubes.GetDate|cmd.exe /c \&quot;[INSTALLDIR]\qubes-rpc-services\set-time.bat\&quot;&quot;"
+/>
+<CustomAction Id="CreateScheduledTaskId"
+    Impersonate="no" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore"
+/>
+<SetProperty Id="RemoveScheduledTaskId"
+    Sequence="execute" Before="RemoveScheduledTaskId"
+    Value="&quot;[SystemFolder]SCHTASKS.EXE&quot; /SCHTASKS /DELETE /TN &quot;QWT\qubes.SetDateTime&quot;"
+/>
+<CustomAction Id="RemoveScheduledTaskId"
+    Impersonate="no" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore"
+/>
+
 <InstallExecuteSequence>
 
     <Custom Action="SignQvideoDriver" Before="MsiProcessDrivers" />
@@ -405,6 +420,13 @@ DowngradeErrorMessage="A later version of [ProductName] is already installed. Se
     <Custom Action="Set_DisableSvc" Before="DisableSvc" />
     <Custom Action="DisableSvc" After="InstallFiles" />
 
+    <Custom Action='CreateScheduledTaskId' After='InstallFiles'>
+       NOT Installed
+    </Custom>
+    <!-- remove scheduled task on uninstall -->
+    <Custom Action="RemoveScheduledTaskId" Before="InstallFinalize">
+        REMOVE="ALL"
+    </Custom>
     <!-- Require reboot after install/uninstall. -->
     <ScheduleReboot After="InstallFinalize" />
 
