@@ -62,6 +62,7 @@ Patch202:	qubes-core-agent-windows-build-with-inlined-__chkstk_ms.patch
 Patch203:	qubes-core-agent-windows-qrexec-agent-fix-relative-path-construct.patch
 Patch204:	qubes-core-agent-windows-relocate-dir-support-IO_REPARSE_TAG_APPEXECLINK.patch
 Patch205:	qubes-core-agent-windows-qrexec-service-wait-for-process-to-complete.patch
+Patch206:	qubes-core-agent-windows-qrexec-agent-fix-service-shutdown.patch
 
 Patch300:	qubes-core-qubesdb-mingw-fragments.patch
 Patch301:	qubes-core-qubesdb-fix-win32-compilation.patch
@@ -107,6 +108,7 @@ patch -d qubes-core-agent-windows -p1 < %{P:202}
 patch -d qubes-core-agent-windows -p1 < %{P:203}
 patch -d qubes-core-agent-windows -p1 < %{P:204}
 patch -d qubes-core-agent-windows -p1 < %{P:205}
+patch -d qubes-core-agent-windows -p1 < %{P:206}
 
 patch -d qubes-core-qubesdb -p1 < %{P:300}
 patch -d qubes-core-qubesdb -p1 < %{P:301}
@@ -117,7 +119,9 @@ patch -d qubes-core-vchan-xen -p1 < %{P:400}
 patch -d qubes-windows-utils -p1 < %{P:500}
 
 patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:600}
+
 patch -d qubes-vmm-xen-windows-pvdrivers -p1 < %{P:700}
+
 patch -d qubes-vmm-xen-win-pvdrivers-xeniface -p1 < %{P:800}
 
 mkdir -p $HOME/.cache/winetricks/dotnet40
