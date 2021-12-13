@@ -64,20 +64,28 @@ Patch204:	qubes-core-agent-windows-relocate-dir-support-IO_REPARSE_TAG_APPEXECLI
 Patch205:	qubes-core-agent-windows-qrexec-service-wait-for-process-to-complete.patch
 Patch206:	qubes-core-agent-windows-qrexec-agent-fix-service-shutdown.patch
 Patch207:	qubes-core-agent-windows-Bugfix-advertise-tools-issues.patch
+Patch208:	qubes-core-agent-windows-qrexec-agent-qrexec-client-vm-remove-duplicated-erro.patch
+Patch209:	qubes-core-agent-windows-qrexec-wrapper-XifLogger-do-not-decrease-log-level.patch
 
 Patch300:	qubes-core-qubesdb-mingw-fragments.patch
 Patch301:	qubes-core-qubesdb-fix-win32-compilation.patch
 Patch302:	qubes-core-qubesdb-daemon-fix-build-using-VS2019.patch
+Patch303:	qubes-core-qubesdb-db-daemon-decrease-log-level-add-more-detailed-log-d.patch
+Patch304:	qubes-core-qubesdb-qdb-client-remove-duplicated-error-logging.patch
 
 Patch400:	qubes-core-vchan-xen-mingw-fragments.patch
+Patch401:	qubes-core-vchan-xen-core-vchan-xen-decrease-log-level-add-more-detailed-.patch
 
 Patch500:	qubes-windows-utils-mingw-fragments.patch
+Patch501:	qubes-windows-utils-LogReadLevel-minor-improvements-.patch
+Patch502:	qubes-windows-utils-remove-duplicated-error-logging-.patch
 
 Patch600:	qubes-installer-qubes-os-windows-tools-mingw-fragments.patch
 
 Patch700:	qubes-vmm-xen-windows-pvdrivers-mingw-fragments.patch
 
 Patch800:	qubes-vmm-xen-win-pvdrivers-xeniface-mingw.patch
+Patch801:	qubes-vmm-xen-win-pvdrivers-xeniface-xencontrol-decrease-log-level.patch
 
 %prep
 %setup -c -T
@@ -111,20 +119,28 @@ patch -d qubes-core-agent-windows -p1 < %{P:204}
 patch -d qubes-core-agent-windows -p1 < %{P:205}
 patch -d qubes-core-agent-windows -p1 < %{P:206}
 patch -d qubes-core-agent-windows -p1 < %{P:207}
+patch -d qubes-core-agent-windows -p1 < %{P:208}
+patch -d qubes-core-agent-windows -p1 < %{P:209}
 
 patch -d qubes-core-qubesdb -p1 < %{P:300}
 patch -d qubes-core-qubesdb -p1 < %{P:301}
 patch -d qubes-core-qubesdb -p1 < %{P:302}
+patch -d qubes-core-qubesdb -p1 < %{P:303}
+patch -d qubes-core-qubesdb -p1 < %{P:304}
 
 patch -d qubes-core-vchan-xen -p1 < %{P:400}
+patch -d qubes-core-vchan-xen -p1 < %{P:401}
 
 patch -d qubes-windows-utils -p1 < %{P:500}
+patch -d qubes-windows-utils -p1 < %{P:501}
+patch -d qubes-windows-utils -p1 < %{P:502}
 
 patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:600}
 
 patch -d qubes-vmm-xen-windows-pvdrivers -p1 < %{P:700}
 
 patch -d qubes-vmm-xen-win-pvdrivers-xeniface -p1 < %{P:800}
+patch -d qubes-vmm-xen-win-pvdrivers-xeniface -p1 < %{P:801}
 
 mkdir -p $HOME/.cache/winetricks/dotnet40
 cp %{S:27} $HOME/.cache/winetricks/dotnet40
