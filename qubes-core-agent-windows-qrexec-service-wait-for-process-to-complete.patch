@@ -1,0 +1,23 @@
+From b512864a4b5a82aacf13b2f746c8ef5bc27d13a4 Mon Sep 17 00:00:00 2001
+From: Ivan Kardykov <kardykov@tabit.pro>
+Date: Thu, 9 Dec 2021 13:35:51 +0300
+Subject: [PATCH] qrexec-service: wait for process to complete
+
+This fixes dispvm halts right after process was invoked
+---
+ src/qrexec-services/start-app.ps1 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/qrexec-services/start-app.ps1 b/src/qrexec-services/start-app.ps1
+index 5ae88eb..8605469 100644
+--- a/src/qrexec-services/start-app.ps1
++++ b/src/qrexec-services/start-app.ps1
+@@ -27,4 +27,4 @@ $desktopBaseName = $args[0]
+ 
+ $desktopFullName = Get-ItemProperty -Path "$RegistryMapPath\$RegistryMapKey" -Name $desktopBaseName
+ 
+-Invoke-Item $desktopFullName.$desktopBaseName
++Start-Process -Wait $desktopFullName.$desktopBaseName
+-- 
+2.31.1
+

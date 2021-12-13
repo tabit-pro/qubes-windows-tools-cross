@@ -1,6 +1,21 @@
---- qubes-windows-tools-4.1/qubes-core-agent-windows/src/relocate-dir/io.c	2019-06-20 03:55:59.000000000 +0300
-+++ qubes-windows-tools-4.1.new/qubes-core-agent-windows/src/relocate-dir/io.c	2020-09-18 18:29:28.878319356 +0300
-@@ -57,6 +57,8 @@ NTSTATUS FileOpen(OUT HANDLE *file, IN c
+From 8e9882d8910edf3f0ec51303864d023f152fa4e9 Mon Sep 17 00:00:00 2001
+From: Ivan Kardykov <kardykov@tabit.pro>
+Date: Thu, 9 Dec 2021 13:27:27 +0300
+Subject: [PATCH] relocate-dir: support IO_REPARSE_TAG_APPEXECLINK
+
+This fixes move-profile feature fails on Windows 10
+
+This fixes QubesOS/qubes-issues#5093
+---
+ src/relocate-dir/io.c | 11 +++++++++++
+ src/relocate-dir/io.h |  5 +++++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/src/relocate-dir/io.c b/src/relocate-dir/io.c
+index d7d4c45..be95d3f 100644
+--- a/src/relocate-dir/io.c
++++ b/src/relocate-dir/io.c
+@@ -57,6 +57,8 @@ NTSTATUS FileOpen(OUT HANDLE *file, IN const PWCHAR fileName, IN BOOLEAN write,
      {
          if (!isReparse)
              desiredAccess |= FILE_WRITE_DATA | FILE_APPEND_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | WRITE_DAC | WRITE_OWNER | DELETE;
@@ -17,7 +32,7 @@
              goto cleanup;
          }
      }
-@@ -700,6 +703,10 @@ NTSTATUS FileCopyReparsePoint(IN const P
+@@ -700,6 +703,10 @@ NTSTATUS FileCopyReparsePoint(IN const PWCHAR sourcePath, IN const PWCHAR target
          NtLog(FALSE, L"[*] Mount point: '%s' -> '%s'\n", sourcePath, dest);
          break;
  
@@ -28,7 +43,7 @@
      default:
  
          NtLog(TRUE, L"[!] FileCopyReparsePoint: Unknown reparse tag 0x%x in '%s'\n", rdb->ReparseTag, sourcePath);
-@@ -1061,6 +1068,10 @@ NTSTATUS FileDeleteDirectory(IN const PW
+@@ -1061,6 +1068,10 @@ NTSTATUS FileDeleteDirectory(IN const PWCHAR path, IN BOOLEAN deleteSelf)
                  {
                      // just delete
                      status = FileOpen(&file, fullPath, TRUE, FALSE, FALSE);
@@ -39,9 +54,11 @@
                      if (!NT_SUCCESS(status))
                      {
                          NtLog(TRUE, L"[!] FileOpen(%s) failed: %x\n", fullPath, status);
---- qubes-windows-tools-4.1/qubes-core-agent-windows/src/relocate-dir/io.h	2019-06-20 03:55:59.000000000 +0300
-+++ qubes-windows-tools-4.1.new/qubes-core-agent-windows-mm/src/relocate-dir/io.h	2020-09-18 14:21:20.791177753 +0300
-@@ -50,3 +50,8 @@ NTSTATUS FileCopyReparsePoint(IN const P
+diff --git a/src/relocate-dir/io.h b/src/relocate-dir/io.h
+index c834985..95701a9 100644
+--- a/src/relocate-dir/io.h
++++ b/src/relocate-dir/io.h
+@@ -50,3 +50,8 @@ NTSTATUS FileCopyReparsePoint(IN const PWCHAR sourcePath, IN const PWCHAR target
  NTSTATUS FileSetSymlink(IN const PWCHAR sourcePath, IN const PWCHAR targetPath);
  NTSTATUS FileCopyDirectory(IN const PWCHAR sourcePath, IN const PWCHAR targetPath, IN BOOLEAN ignoreErrors);
  NTSTATUS FileDeleteDirectory(IN const PWCHAR path, IN BOOLEAN deleteSelf);
@@ -50,3 +67,6 @@
 +#define IO_REPARSE_TAG_APPEXECLINK (0x8000001BL)
 +#endif
 +
+-- 
+2.31.1
+

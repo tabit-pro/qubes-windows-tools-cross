@@ -1,6 +1,19 @@
---- a/qubes-core-agent-windows/Makefile	2019-06-05 03:37:28.000000000 +0000
-+++ b/qubes-core-agent-windows/Makefile	2019-06-07 13:39:04.234629240 +0000
-@@ -38,8 +38,8 @@
+From b3050b7f6c0b542205464271b4e2ea92a164b292 Mon Sep 17 00:00:00 2001
+From: Ivan Kardykov <kardykov@tabit.pro>
+Date: Thu, 9 Dec 2021 13:11:48 +0300
+Subject: [PATCH] build with inlined __chkstk_ms
+
+---
+ Makefile                  |  4 +--
+ src/relocate-dir/chkstk.S | 57 +++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 59 insertions(+), 2 deletions(-)
+ create mode 100644 src/relocate-dir/chkstk.S
+
+diff --git a/Makefile b/Makefile
+index d611900..8005630 100644
+--- a/Makefile
++++ b/Makefile
+@@ -38,8 +38,8 @@ $(OUTDIR_ANY)/service-policy.exe: $(wildcard src/service-policy/*.cs)
  $(OUTDIR_ANY)/service-policy.cfg: src/service-policy/service-policy.cfg
  	cp $^ $@
  
@@ -11,8 +24,11 @@
  
  $(RPC_FILES): $(OUTDIR_ANY)/qubes-rpc/%: src/qrexec-services/%
  	cp $^ $@
---- a/qubes-core-agent-windows/src/relocate-dir/chkstk.S	1970-01-01 00:00:00.000000000 +0000
-+++ b/qubes-core-agent-windows/src/relocate-dir/chkstk.S	2019-06-07 13:45:30.139518751 +0000
+diff --git a/src/relocate-dir/chkstk.S b/src/relocate-dir/chkstk.S
+new file mode 100644
+index 0000000..be9781f
+--- /dev/null
++++ b/src/relocate-dir/chkstk.S
 @@ -0,0 +1,57 @@
 +#include "assembly.h"
 +
@@ -71,3 +87,6 @@
 +END_COMPILERRT_FUNCTION(___chkstk_ms)
 +
 +#endif // __x86_64__
+-- 
+2.31.1
+

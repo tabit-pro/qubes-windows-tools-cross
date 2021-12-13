@@ -1,12 +1,24 @@
---- a/qubes-core-agent-windows/src/qrexec-agent/qrexec-agent.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/qubes-core-agent-windows/src/qrexec-agent/qrexec-agent.c	2020-02-10 18:32:33.614626747 +0300
-@@ -460,21 +460,22 @@ static DWORD InterceptRPCRequest(IN OUT
+From 7172a8a42c279e0d41049ab693135ba43daedcee Mon Sep 17 00:00:00 2001
+From: Ivan Kardykov <kardykov@tabit.pro>
+Date: Wed, 8 Dec 2021 18:35:02 +0300
+Subject: [PATCH] qrexec-agent: fix relative path construct
+
+This fixes qubes-rpc service fail with argument appended.
+---
+ src/qrexec-agent/qrexec-agent.c | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index 69d56ae..0d16f1f 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -460,21 +460,22 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
          {
              // maybe there is an argument appended? look for a file with
              // +argument stripped
 -            separator = wcschr(serviceName, L'+');
 -            if (separator)
-+	    WCHAR *newsep = NULL;
++            WCHAR *newsep = NULL;
 +            newsep = wcschr(serviceName, L'+');
 +            if (newsep)
              {
@@ -31,3 +43,6 @@
                  PathAppendW(serviceFilePath, serviceName);
  
                  serviceConfigFile = CreateFile(
+-- 
+2.31.1
+

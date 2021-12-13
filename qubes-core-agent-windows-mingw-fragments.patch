@@ -1,6 +1,122 @@
-diff -pruN a/include/customddkinc.h b/include/customddkinc.h
---- a/include/customddkinc.h	1970-01-01 03:00:00.000000000 +0300
-+++ b/include/customddkinc.h	2020-01-17 13:31:52.958729291 +0300
+From 2cca13051b41bb147628816eba6b1bf0ac626020 Mon Sep 17 00:00:00 2001
+From: Ivan Kardykov <kardykov@tabit.pro>
+Date: Thu, 9 Dec 2021 12:35:08 +0300
+Subject: [PATCH] Add support for MinGW build
+
+- make all includes lowercase (Windows don't care, MinGW on Linux ships
+  them lowecase)
+- add few workarounds for missing headers/features in MinGW
+- where in doubt, enclouse changes in __MINGW32__ to keep compatibility
+  with original VS build
+- rename perror to win_perror
+- add Makefile for MinGW build
+---
+ Makefile                                      | 57 +++++++++++++++
+ include/customddkinc.h                        | 72 +++++++++++++++++++
+ include/setupapifn.h                          |  4 ++
+ src/advertise-tools/advertise-tools.c         | 28 ++++----
+ src/ask-vm-and-run/ask-vm-and-run.c           |  6 +-
+ src/network-setup/qubes-network-setup.c       | 18 ++---
+ src/prepare-volume/device.c                   | 15 ++--
+ src/prepare-volume/disk.c                     | 36 +++++-----
+ src/prepare-volume/format.c                   |  4 +-
+ src/prepare-volume/prepare-volume.c           | 21 +++---
+ src/prepare-volume/prepare-volume.h           |  3 +-
+ src/prepare-volume/wait-for-volume.c          | 16 ++---
+ src/qrexec-agent/qrexec-agent.c               | 52 +++++++-------
+ src/qrexec-client-vm/qrexec-client-vm.c       | 16 ++---
+ .../clipboard-copy/clipboard-copy.c           | 14 ++--
+ .../clipboard-paste/clipboard-paste.c         | 20 +++---
+ src/qrexec-services/common/filecopy-error.c   |  2 +-
+ src/qrexec-services/common/filecopy.c         |  4 +-
+ src/qrexec-services/common/linux.h            |  1 +
+ .../file-receiver/file-receiver.c             | 33 +++++----
+ src/qrexec-services/file-receiver/unpack.c    |  4 +-
+ src/qrexec-services/file-sender/file-sender.c |  6 +-
+ .../file-sender/file-sender.rc                |  2 +
+ .../file-sender/gui-progress.c                |  2 +-
+ .../get-image-rgba/get-image-rgba.c           | 22 +++---
+ src/qrexec-services/open-in-vm/qopen-in-vm.c  |  2 +-
+ src/qrexec-services/open-url/open-url.c       |  2 +-
+ .../vm-file-editor/vm-file-editor.c           | 18 ++---
+ .../wait-for-logon/wait-for-logon.c           | 20 +++---
+ .../window-icon-updater/window-icon-updater.c |  2 +-
+ src/qrexec-wrapper/qrexec-wrapper.c           | 34 ++++-----
+ src/relocate-dir/main.c                       |  4 ++
+ 32 files changed, 347 insertions(+), 193 deletions(-)
+ create mode 100644 Makefile
+ create mode 100644 include/customddkinc.h
+ create mode 100644 include/setupapifn.h
+ create mode 100644 src/qrexec-services/file-sender/file-sender.rc
+
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..d611900
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,57 @@
++OUTDIR = bin/$(ARCH)
++OUTDIR_ANY = bin/AnyCPU
++CFLAGS += -Iinclude -DUNICODE -D_UNICODE -mwindows -D_WIN32_WINNT=0x0600 -std=c11 -fgnu89-inline
++LDFLAGS += -Wl,--as-needed -lqubesdb-client -lwindows-utils -lshlwapi -lwtsapi32 -lwsock32 -liphlpapi -lsetupapi -lole32 -lcomctl32 -lrpcrt4 -luuid -lntdll -Wl,--no-insert-timestamp
++
++#TODO: drop ask-vm-and-run.exe
++TOOLS = $(addprefix $(OUTDIR)/, advertise-tools.exe ask-vm-and-run.exe network-setup.exe prepare-volume.exe qrexec-agent.exe qrexec-client-vm.exe qrexec-wrapper.exe)
++QREXEC_SERVICES = $(addprefix $(OUTDIR)/, clipboard-copy.exe clipboard-paste.exe file-receiver.exe file-sender.exe get-image-rgba.exe open-in-vm.exe open-url.exe set-gui-mode.exe vm-file-editor.exe wait-for-logon.exe window-icon-updater.exe)
++RPC_FILES = $(addprefix $(OUTDIR_ANY)/qubes-rpc/,qubes.ClipboardCopy qubes.ClipboardPaste qubes.Filecopy qubes.GetAppMenus qubes.GetImageRGBA qubes.OpenInVM qubes.OpenURL qubes.SetDateTime qubes.SetGuiMode qubes.StartApp qubes.VMShell qubes.WaitForSession)
++RPC_SCRIPTS = $(addprefix $(OUTDIR_ANY)/, get-appmenus.ps1 set-time.ps1 start-app.ps1)
++
++
++all: $(OUTDIR) $(OUTDIR_ANY) $(OUTDIR_ANY)/qubes-rpc $(TOOLS) $(QREXEC_SERVICES) $(RPC_FILES) $(RPC_SCRIPTS) $(OUTDIR_ANY)/service-policy.exe $(OUTDIR_ANY)/service-policy.cfg $(OUTDIR)/relocate-dir.exe
++
++$(OUTDIR) $(OUTDIR_ANY) $(OUTDIR_ANY)/qubes-rpc:
++	mkdir -p $@
++
++$(addprefix $(OUTDIR)/,qrexec-agent.exe qrexec-client-vm.exe qrexec-wrapper.exe): LDFLAGS+=-lvchan
++$(OUTDIR)/advertise-tools.exe: LDFLAGS+=-lqubesdb-client
++
++$(QREXEC_SERVICES): CFLAGS += -Isrc/qrexec-services/common
++
++
++$(OUTDIR)/file-receiver.exe: src/qrexec-services/common/filecopy.c src/qrexec-services/common/filecopy-error.c
++#$(OUTDIR)/file-receiver.exe: CFLAGS += -DNO_SHLWAPI_STRFCNS
++
++$(OUTDIR)/file-sender.exe: src/qrexec-services/common/filecopy.c src/qrexec-services/common/filecopy-error.c $(OUTDIR)/file-sender.res
++$(OUTDIR)/open-in-vm.exe: src/qrexec-services/common/filecopy.c src/qrexec-services/common/filecopy-error.c
++
++# specific rules
++
++$(OUTDIR)/file-sender.res: src/qrexec-services/file-sender/file-sender.rc
++	$(WINDRES) -i $< -o $@ -O coff
++
++$(OUTDIR_ANY)/service-policy.exe: $(wildcard src/service-policy/*.cs)
++	mcs $^ -r:System.ServiceProcess.dll -out:$@
++
++$(OUTDIR_ANY)/service-policy.cfg: src/service-policy/service-policy.cfg
++	cp $^ $@
++
++$(OUTDIR)/relocate-dir.exe: $(wildcard src/relocate-dir/*.c)
++	$(CC) $^ $(CFLAGS) -I$(DDK_PATH) -e NtProcessStartup -Wl,--subsystem,native -L $(OUTDIR) -lntdll -nostdlib -D__INTRINSIC_DEFINED__InterlockedAdd64 -fstack-check -Wl,--stack,16777216 -mno-stack-arg-probe -municode -Wl,--no-insert-timestamp -o $@
++
++$(RPC_FILES): $(OUTDIR_ANY)/qubes-rpc/%: src/qrexec-services/%
++	cp $^ $@
++	
++$(RPC_SCRIPTS): $(OUTDIR_ANY)/%: src/qrexec-services/%
++	cp $^ $@
++
++# generic rules
++
++.SECONDEXPANSION:
++$(TOOLS): $(OUTDIR)/%.exe: $$(wildcard src/%/*.c)
++	$(CC) $^ $(CFLAGS) $(LDFLAGS) -municode -o $@
++
++$(QREXEC_SERVICES): $(OUTDIR)/%.exe: $$(wildcard src/qrexec-services/%/*.c)
++	$(CC) $^ $(CFLAGS) $(LDFLAGS) -municode -o $@
+diff --git a/include/customddkinc.h b/include/customddkinc.h
+new file mode 100644
+index 0000000..955c73f
+--- /dev/null
++++ b/include/customddkinc.h
 @@ -0,0 +1,72 @@
 +#include <devpropdef.h>
 +#include <strsafe.h>
@@ -74,78 +190,20 @@ diff -pruN a/include/customddkinc.h b/include/customddkinc.h
 +} SET_DISK_ATTRIBUTES, *PSET_DISK_ATTRIBUTES;
 +
 +
-diff -pruN a/include/setupapifn.h b/include/setupapifn.h
---- a/include/setupapifn.h	1970-01-01 03:00:00.000000000 +0300
-+++ b/include/setupapifn.h	2020-01-17 13:31:52.958729291 +0300
+diff --git a/include/setupapifn.h b/include/setupapifn.h
+new file mode 100644
+index 0000000..c4f8bc6
+--- /dev/null
++++ b/include/setupapifn.h
 @@ -0,0 +1,4 @@
 +#define SetupDiGetDeviceProperty __MINGW_NAME_AW(SetupDiGetDeviceProperty)
 +
 +WINSETUPAPI WINBOOL WINAPI SetupDiGetDevicePropertyW(HDEVINFO DeviceInfoSet,PSP_DEVINFO_DATA DeviceInfoData,const DEVPROPKEY *PropertyKey,DEVPROPTYPE *PropertyType,PBYTE PropertyBuffer,DWORD PropertyBufferSize,PDWORD RequiredSize,DWORD Flags);
 +
-diff -pruN a/Makefile b/Makefile
---- a/Makefile	1970-01-01 03:00:00.000000000 +0300
-+++ b/Makefile	2020-01-17 13:31:52.895729144 +0300
-@@ -0,0 +1,57 @@
-+OUTDIR = bin/$(ARCH)
-+OUTDIR_ANY = bin/AnyCPU
-+CFLAGS += -Iinclude -DUNICODE -D_UNICODE -mwindows -D_WIN32_WINNT=0x0600 -std=c11 -fgnu89-inline
-+LDFLAGS += -Wl,--as-needed -lqubesdb-client -lwindows-utils -lshlwapi -lwtsapi32 -lwsock32 -liphlpapi -lsetupapi -lole32 -lcomctl32 -lrpcrt4 -luuid -lntdll -Wl,--no-insert-timestamp
-+
-+#TODO: drop ask-vm-and-run.exe
-+TOOLS = $(addprefix $(OUTDIR)/, advertise-tools.exe ask-vm-and-run.exe network-setup.exe prepare-volume.exe qrexec-agent.exe qrexec-client-vm.exe qrexec-wrapper.exe)
-+QREXEC_SERVICES = $(addprefix $(OUTDIR)/, clipboard-copy.exe clipboard-paste.exe file-receiver.exe file-sender.exe get-image-rgba.exe open-in-vm.exe open-url.exe set-gui-mode.exe vm-file-editor.exe wait-for-logon.exe window-icon-updater.exe)
-+RPC_FILES = $(addprefix $(OUTDIR_ANY)/qubes-rpc/,qubes.ClipboardCopy qubes.ClipboardPaste qubes.Filecopy qubes.GetAppMenus qubes.GetImageRGBA qubes.OpenInVM qubes.OpenURL qubes.SetDateTime qubes.SetGuiMode qubes.StartApp qubes.VMShell qubes.WaitForSession)
-+RPC_SCRIPTS = $(addprefix $(OUTDIR_ANY)/, get-appmenus.ps1 set-time.ps1 start-app.ps1)
-+
-+
-+all: $(OUTDIR) $(OUTDIR_ANY) $(OUTDIR_ANY)/qubes-rpc $(TOOLS) $(QREXEC_SERVICES) $(RPC_FILES) $(RPC_SCRIPTS) $(OUTDIR_ANY)/service-policy.exe $(OUTDIR_ANY)/service-policy.cfg $(OUTDIR)/relocate-dir.exe
-+
-+$(OUTDIR) $(OUTDIR_ANY) $(OUTDIR_ANY)/qubes-rpc:
-+	mkdir -p $@
-+
-+$(addprefix $(OUTDIR)/,qrexec-agent.exe qrexec-client-vm.exe qrexec-wrapper.exe): LDFLAGS+=-lvchan
-+$(OUTDIR)/advertise-tools.exe: LDFLAGS+=-lqubesdb-client
-+
-+$(QREXEC_SERVICES): CFLAGS += -Isrc/qrexec-services/common
-+
-+
-+$(OUTDIR)/file-receiver.exe: src/qrexec-services/common/filecopy.c src/qrexec-services/common/filecopy-error.c
-+#$(OUTDIR)/file-receiver.exe: CFLAGS += -DNO_SHLWAPI_STRFCNS
-+
-+$(OUTDIR)/file-sender.exe: src/qrexec-services/common/filecopy.c src/qrexec-services/common/filecopy-error.c $(OUTDIR)/file-sender.res
-+$(OUTDIR)/open-in-vm.exe: src/qrexec-services/common/filecopy.c src/qrexec-services/common/filecopy-error.c
-+
-+# specific rules
-+
-+$(OUTDIR)/file-sender.res: src/qrexec-services/file-sender/file-sender.rc
-+	$(WINDRES) -i $< -o $@ -O coff
-+
-+$(OUTDIR_ANY)/service-policy.exe: $(wildcard src/service-policy/*.cs)
-+	mcs $^ -r:System.ServiceProcess.dll -out:$@
-+
-+$(OUTDIR_ANY)/service-policy.cfg: src/service-policy/service-policy.cfg
-+	cp $^ $@
-+
-+$(OUTDIR)/relocate-dir.exe: $(wildcard src/relocate-dir/*.c)
-+	$(CC) $^ $(CFLAGS) -I$(DDK_PATH) -e NtProcessStartup -Wl,--subsystem,native -L $(OUTDIR) -lntdll -nostdlib -D__INTRINSIC_DEFINED__InterlockedAdd64 -fstack-check -Wl,--stack,16777216 -mno-stack-arg-probe -municode -Wl,--no-insert-timestamp -o $@
-+
-+$(RPC_FILES): $(OUTDIR_ANY)/qubes-rpc/%: src/qrexec-services/%
-+	cp $^ $@
-+	
-+$(RPC_SCRIPTS): $(OUTDIR_ANY)/%: src/qrexec-services/%
-+	cp $^ $@
-+
-+# generic rules
-+
-+.SECONDEXPANSION:
-+$(TOOLS): $(OUTDIR)/%.exe: $$(wildcard src/%/*.c)
-+	$(CC) $^ $(CFLAGS) $(LDFLAGS) -municode -o $@
-+
-+$(QREXEC_SERVICES): $(OUTDIR)/%.exe: $$(wildcard src/qrexec-services/%/*.c)
-+	$(CC) $^ $(CFLAGS) $(LDFLAGS) -municode -o $@
-diff -pruN a/src/advertise-tools/advertise-tools.c b/src/advertise-tools/advertise-tools.c
---- a/src/advertise-tools/advertise-tools.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/advertise-tools/advertise-tools.c	2020-01-17 13:31:52.959729293 +0300
+diff --git a/src/advertise-tools/advertise-tools.c b/src/advertise-tools/advertise-tools.c
+index 8b6f36c..5fdb65d 100644
+--- a/src/advertise-tools/advertise-tools.c
++++ b/src/advertise-tools/advertise-tools.c
 @@ -21,7 +21,7 @@
  
  #include <windows.h>
@@ -173,7 +231,7 @@ diff -pruN a/src/advertise-tools/advertise-tools.c b/src/advertise-tools/adverti
                  goto cleanup;
              }
              LogDebug("Found session: %S\n", *userName);
-@@ -79,7 +79,7 @@ BOOL PrepareExePath(OUT WCHAR *fullPath,
+@@ -79,7 +79,7 @@ BOOL PrepareExePath(OUT WCHAR *fullPath, IN const WCHAR *exeName)
  {
      if (ERROR_SUCCESS != CfgReadString(NULL, L"InstallDir", fullPath, MAX_PATH, NULL))
      {
@@ -182,7 +240,7 @@ diff -pruN a/src/advertise-tools/advertise-tools.c b/src/advertise-tools/adverti
          return FALSE;
      }
  
-@@ -87,12 +87,12 @@ BOOL PrepareExePath(OUT WCHAR *fullPath,
+@@ -87,12 +87,12 @@ BOOL PrepareExePath(OUT WCHAR *fullPath, IN const WCHAR *exeName)
  
      if (!PathAppend(fullPath, L"bin"))
      {
@@ -259,9 +317,10 @@ diff -pruN a/src/advertise-tools/advertise-tools.c b/src/advertise-tools/adverti
          goto cleanup;
      }
  
-diff -pruN a/src/ask-vm-and-run/ask-vm-and-run.c b/src/ask-vm-and-run/ask-vm-and-run.c
---- a/src/ask-vm-and-run/ask-vm-and-run.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/ask-vm-and-run/ask-vm-and-run.c	2020-01-17 13:31:52.959729293 +0300
+diff --git a/src/ask-vm-and-run/ask-vm-and-run.c b/src/ask-vm-and-run/ask-vm-and-run.c
+index ceb4bb3..3134b2c 100644
+--- a/src/ask-vm-and-run/ask-vm-and-run.c
++++ b/src/ask-vm-and-run/ask-vm-and-run.c
 @@ -20,7 +20,7 @@
   */
  
@@ -271,7 +330,7 @@ diff -pruN a/src/ask-vm-and-run/ask-vm-and-run.c b/src/ask-vm-and-run/ask-vm-and
  #include <strsafe.h>
  #include <stdlib.h>
  #include "resource.h"
-@@ -87,7 +87,7 @@ int APIENTRY wWinMain(HINSTANCE instance
+@@ -87,7 +87,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE previousInstance, LPTSTR com
      // build qrexec-client-vm path, first get our own
      if (!GetModuleFileName(NULL, qrexecClientPath, RTL_NUMBER_OF(qrexecClientPath)))
      {
@@ -280,7 +339,7 @@ diff -pruN a/src/ask-vm-and-run/ask-vm-and-run.c b/src/ask-vm-and-run/ask-vm-and
          ReportError(L"Failed to get " QREXEC_CLIENT_VM L" path");
          return status;
      }
-@@ -130,7 +130,7 @@ int APIENTRY wWinMain(HINSTANCE instance
+@@ -130,7 +130,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE previousInstance, LPTSTR com
  
      if (!CreateProcess(qrexecClientPath, qrexecClientCmdLine, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
      {
@@ -289,10 +348,11 @@ diff -pruN a/src/ask-vm-and-run/ask-vm-and-run.c b/src/ask-vm-and-run/ask-vm-and
          ReportError(L"Failed to execute qrexec-client-vm.exe");
          return status;
      }
-diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-network-setup.c
---- a/src/network-setup/qubes-network-setup.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/network-setup/qubes-network-setup.c	2020-01-17 13:31:52.959729293 +0300
-@@ -72,14 +72,14 @@ DWORD SetNetworkParameters(IN DWORD ip,
+diff --git a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-network-setup.c
+index 478636b..e7405d6 100644
+--- a/src/network-setup/qubes-network-setup.c
++++ b/src/network-setup/qubes-network-setup.c
+@@ -72,14 +72,14 @@ DWORD SetNetworkParameters(IN DWORD ip, IN DWORD netmask, IN DWORD gateway, OUT
  
      if (status != ERROR_BUFFER_OVERFLOW)
      {
@@ -309,7 +369,7 @@ diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-n
          goto cleanup;
      }
  
-@@ -107,7 +107,7 @@ DWORD SetNetworkParameters(IN DWORD ip,
+@@ -107,7 +107,7 @@ DWORD SetNetworkParameters(IN DWORD ip, IN DWORD netmask, IN DWORD gateway, OUT
                      status = DeleteIPAddress(addrCurrent->Context);
                      if (status != ERROR_SUCCESS)
                      {
@@ -318,7 +378,7 @@ diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-n
                          goto cleanup;
                      }
                      addrCurrent = addrCurrent->Next;
-@@ -117,7 +117,7 @@ DWORD SetNetworkParameters(IN DWORD ip,
+@@ -117,7 +117,7 @@ DWORD SetNetworkParameters(IN DWORD ip, IN DWORD netmask, IN DWORD gateway, OUT
                  status = AddIPAddress(ip, netmask, adapterInfoCurrent->Index, &nteContext, &nteInstance);
                  if (status != ERROR_SUCCESS)
                  {
@@ -327,7 +387,7 @@ diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-n
                      goto cleanup;
                  }
  
-@@ -147,7 +147,7 @@ DWORD SetNetworkParameters(IN DWORD ip,
+@@ -147,7 +147,7 @@ DWORD SetNetworkParameters(IN DWORD ip, IN DWORD netmask, IN DWORD gateway, OUT
  
      if (status != ERROR_SUCCESS)
      {
@@ -336,7 +396,7 @@ diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-n
          goto cleanup;
      }
  
-@@ -164,7 +164,7 @@ DWORD SetNetworkParameters(IN DWORD ip,
+@@ -164,7 +164,7 @@ DWORD SetNetworkParameters(IN DWORD ip, IN DWORD netmask, IN DWORD gateway, OUT
  
              if (status != ERROR_SUCCESS)
              {
@@ -345,7 +405,7 @@ diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-n
                  goto cleanup;
              }
          }
-@@ -176,7 +176,7 @@ DWORD SetNetworkParameters(IN DWORD ip,
+@@ -176,7 +176,7 @@ DWORD SetNetworkParameters(IN DWORD ip, IN DWORD netmask, IN DWORD gateway, OUT
      status = GetIpInterfaceEntry(&ipInterfaceRow);
      if (status != NO_ERROR)
      {
@@ -354,7 +414,7 @@ diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-n
          goto cleanup;
      }
  
-@@ -190,7 +190,7 @@ DWORD SetNetworkParameters(IN DWORD ip,
+@@ -190,7 +190,7 @@ DWORD SetNetworkParameters(IN DWORD ip, IN DWORD netmask, IN DWORD gateway, OUT
      status = CreateIpForwardEntry(&ipForwardRow);
  
      if (status != NO_ERROR)
@@ -372,9 +432,10 @@ diff -pruN a/src/network-setup/qubes-network-setup.c b/src/network-setup/qubes-n
          goto cleanup;
      }
  
-diff -pruN a/src/prepare-volume/device.c b/src/prepare-volume/device.c
---- a/src/prepare-volume/device.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/prepare-volume/device.c	2020-01-17 13:31:52.959729293 +0300
+diff --git a/src/prepare-volume/device.c b/src/prepare-volume/device.c
+index 2b77383..aee5d25 100644
+--- a/src/prepare-volume/device.c
++++ b/src/prepare-volume/device.c
 @@ -22,11 +22,18 @@
  #include "device.h"
  #include "disk.h"
@@ -395,7 +456,7 @@ diff -pruN a/src/prepare-volume/device.c b/src/prepare-volume/device.c
  // Convert backend device ID to Windows' disk target id.
  // See __ParseVbd() in xenvbd/fdo.c in the new pvdrivers.
  static ULONG BackendIdToTargetId(ULONG backendId)
-@@ -115,7 +122,7 @@ BOOL GetPrivateImgDriveNumber(IN ULONG x
+@@ -115,7 +122,7 @@ BOOL GetPrivateImgDriveNumber(IN ULONG xenVbdId, OUT ULONG *driveNumber)
  
      if (deviceInfoSet == INVALID_HANDLE_VALUE)
      {
@@ -404,7 +465,7 @@ diff -pruN a/src/prepare-volume/device.c b/src/prepare-volume/device.c
          return FALSE;
      }
  
-@@ -126,7 +133,7 @@ BOOL GetPrivateImgDriveNumber(IN ULONG x
+@@ -126,7 +133,7 @@ BOOL GetPrivateImgDriveNumber(IN ULONG xenVbdId, OUT ULONG *driveNumber)
      {
          if (!SetupDiGetDeviceInstanceId(deviceInfoSet, &deviceInfoData, deviceId, RTL_NUMBER_OF(deviceId), &returnedSize))
          {
@@ -413,7 +474,7 @@ diff -pruN a/src/prepare-volume/device.c b/src/prepare-volume/device.c
              continue;
          }
  
-@@ -137,7 +144,7 @@ BOOL GetPrivateImgDriveNumber(IN ULONG x
+@@ -137,7 +144,7 @@ BOOL GetPrivateImgDriveNumber(IN ULONG xenVbdId, OUT ULONG *driveNumber)
          if (!SetupDiGetDeviceProperty(deviceInfoSet, &deviceInfoData, &DEVPKEY_Device_LocationInfo, &devPropType,
              (BYTE *)locationString, sizeof(locationString), &returnedSize, 0))
          {
@@ -422,9 +483,10 @@ diff -pruN a/src/prepare-volume/device.c b/src/prepare-volume/device.c
              continue;
          }
  
-diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
---- a/src/prepare-volume/disk.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/prepare-volume/disk.c	2020-01-17 13:31:52.960729296 +0300
+diff --git a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
+index f73615d..884e589 100644
+--- a/src/prepare-volume/disk.c
++++ b/src/prepare-volume/disk.c
 @@ -22,8 +22,12 @@
  #include "disk.h"
  #include "format.h"
@@ -438,7 +500,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
  
  // without braces
  PWCHAR DISK_CLASS_GUID = L"4d36e967-e325-11ce-bfc1-08002be10318";
-@@ -38,14 +42,14 @@ BOOL GetPhysicalDriveNumber(IN WCHAR *de
+@@ -38,14 +42,14 @@ BOOL GetPhysicalDriveNumber(IN WCHAR *deviceName, OUT ULONG *driveNumber)
  
      if (device == INVALID_HANDLE_VALUE)
      {
@@ -455,7 +517,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          goto cleanup;
      }
  
-@@ -87,7 +91,7 @@ static BOOL VolumeNameToDiskLetter(IN WC
+@@ -87,7 +91,7 @@ static BOOL VolumeNameToDiskLetter(IN WCHAR *volumeName, OUT WCHAR *diskLetter)
      ZeroMemory(mountPoints, returned*sizeof(WCHAR));
      if (!GetVolumePathNamesForVolumeName(volumeName, mountPoints, returned, &returned))
      {
@@ -464,7 +526,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          free(mountPoints);
          return FALSE;
      }
-@@ -121,7 +125,7 @@ BOOL DriveNumberToVolumeName(IN DWORD dr
+@@ -121,7 +125,7 @@ BOOL DriveNumberToVolumeName(IN DWORD driveNumber, OUT WCHAR *volumeName, IN DWO
      findHandle = FindFirstVolume(volumeName, volumeNameLength);
      if (findHandle == INVALID_HANDLE_VALUE)
      {
@@ -473,7 +535,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          return FALSE;
      }
  
-@@ -134,14 +138,14 @@ BOOL DriveNumberToVolumeName(IN DWORD dr
+@@ -134,14 +138,14 @@ BOOL DriveNumberToVolumeName(IN DWORD driveNumber, OUT WCHAR *volumeName, IN DWO
          volume = CreateFile(volumeName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
          if (volume == INVALID_HANDLE_VALUE)
          {
@@ -490,7 +552,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
              goto skip;
          }
  
-@@ -205,14 +209,14 @@ static BOOL InitializeDisk(IN HANDLE dev
+@@ -205,14 +209,14 @@ static BOOL InitializeDisk(IN HANDLE device, IN LARGE_INTEGER diskSize, OUT WCHA
  
      if (!DeviceIoControl(device, IOCTL_DISK_SET_DISK_ATTRIBUTES, &diskAttrs, sizeof(diskAttrs), NULL, 0, &requiredSize, NULL))
      {
@@ -507,7 +569,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          return FALSE;
      }
  
-@@ -226,7 +230,7 @@ static BOOL InitializeDisk(IN HANDLE dev
+@@ -226,7 +230,7 @@ static BOOL InitializeDisk(IN HANDLE device, IN LARGE_INTEGER diskSize, OUT WCHA
  
      if (!DeviceIoControl(device, IOCTL_DISK_CREATE_DISK, &createDisk, sizeof(createDisk), NULL, 0, &requiredSize, NULL))
      {
@@ -516,7 +578,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          return FALSE;
      }
  
-@@ -234,7 +238,7 @@ static BOOL InitializeDisk(IN HANDLE dev
+@@ -234,7 +238,7 @@ static BOOL InitializeDisk(IN HANDLE device, IN LARGE_INTEGER diskSize, OUT WCHA
  
      if (!DeviceIoControl(device, IOCTL_DISK_UPDATE_PROPERTIES, NULL, 0, NULL, 0, &requiredSize, NULL))
      {
@@ -525,7 +587,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          return FALSE;
      }
  
-@@ -270,13 +274,13 @@ static BOOL InitializeDisk(IN HANDLE dev
+@@ -270,13 +274,13 @@ static BOOL InitializeDisk(IN HANDLE device, IN LARGE_INTEGER diskSize, OUT WCHA
  
      if (!DeviceIoControl(device, IOCTL_DISK_SET_DRIVE_LAYOUT_EX, partitionBuffer, sizeof(partitionBuffer), NULL, 0, &requiredSize, NULL))
      {
@@ -541,7 +603,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          return FALSE;
      }
  
-@@ -315,14 +319,14 @@ BOOL PreparePrivateVolume(IN ULONG drive
+@@ -315,14 +319,14 @@ BOOL PreparePrivateVolume(IN ULONG driveNumber, OUT WCHAR *diskLetter)
      device = CreateFile(driveName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
      if (device == INVALID_HANDLE_VALUE)
      {
@@ -558,7 +620,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
          goto cleanup;
      }
  
-@@ -355,7 +359,7 @@ BOOL PreparePrivateVolume(IN ULONG drive
+@@ -355,7 +359,7 @@ BOOL PreparePrivateVolume(IN ULONG driveNumber, OUT WCHAR *diskLetter)
                  // Check the filesystem.
                  if (!GetVolumeInformation(volumeName, NULL, 0, NULL, NULL, NULL, filesystemName, RTL_NUMBER_OF(filesystemName)))
                  {
@@ -567,7 +629,7 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
                      reinitialize = TRUE;
                  }
                  else
-@@ -394,7 +398,7 @@ BOOL PreparePrivateVolume(IN ULONG drive
+@@ -394,7 +398,7 @@ BOOL PreparePrivateVolume(IN ULONG driveNumber, OUT WCHAR *diskLetter)
          // Get disk size.
          if (!DeviceIoControl(device, IOCTL_DISK_GET_LENGTH_INFO, NULL, 0, &lengthInfo, sizeof(lengthInfo), &returnedSize, NULL))
          {
@@ -576,9 +638,10 @@ diff -pruN a/src/prepare-volume/disk.c b/src/prepare-volume/disk.c
              goto cleanup;
          }
  
-diff -pruN a/src/prepare-volume/format.c b/src/prepare-volume/format.c
---- a/src/prepare-volume/format.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/prepare-volume/format.c	2020-01-17 13:31:52.960729296 +0300
+diff --git a/src/prepare-volume/format.c b/src/prepare-volume/format.c
+index c8f96b2..72861af 100644
+--- a/src/prepare-volume/format.c
++++ b/src/prepare-volume/format.c
 @@ -120,7 +120,7 @@ BOOL FormatVolume(IN DWORD diskNumber)
              g_fmifsDll = LoadLibrary(L"fmifs");
              if (!g_fmifsDll)
@@ -597,9 +660,10 @@ diff -pruN a/src/prepare-volume/format.c b/src/prepare-volume/format.c
                  return FALSE;
              }
          }
-diff -pruN a/src/prepare-volume/prepare-volume.c b/src/prepare-volume/prepare-volume.c
---- a/src/prepare-volume/prepare-volume.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/prepare-volume/prepare-volume.c	2020-01-17 13:31:52.960729296 +0300
+diff --git a/src/prepare-volume/prepare-volume.c b/src/prepare-volume/prepare-volume.c
+index fd9f13e..1995ac2 100644
+--- a/src/prepare-volume/prepare-volume.c
++++ b/src/prepare-volume/prepare-volume.c
 @@ -23,11 +23,12 @@
  
  #include "prepare-volume.h"
@@ -616,7 +680,7 @@ diff -pruN a/src/prepare-volume/prepare-volume.c b/src/prepare-volume/prepare-vo
  
  #include "device.h"
  #include "disk.h"
-@@ -44,7 +45,7 @@ DWORD EnablePrivilege(HANDLE token, cons
+@@ -44,7 +45,7 @@ DWORD EnablePrivilege(HANDLE token, const WCHAR *privilegeName)
      LUID luid;
  
      if (!LookupPrivilegeValue(NULL, privilegeName, &luid))
@@ -625,7 +689,7 @@ diff -pruN a/src/prepare-volume/prepare-volume.c b/src/prepare-volume/prepare-vo
  
      tp.PrivilegeCount = 1;
      tp.Privileges[0].Luid = luid;
-@@ -57,7 +58,7 @@ DWORD EnablePrivilege(HANDLE token, cons
+@@ -57,7 +58,7 @@ DWORD EnablePrivilege(HANDLE token, const WCHAR *privilegeName)
          sizeof(TOKEN_PRIVILEGES),
          (PTOKEN_PRIVILEGES) NULL,
          (PDWORD) NULL))
@@ -679,9 +743,10 @@ diff -pruN a/src/prepare-volume/prepare-volume.c b/src/prepare-volume/prepare-vo
          return 1;
      }
  
-diff -pruN a/src/prepare-volume/prepare-volume.h b/src/prepare-volume/prepare-volume.h
---- a/src/prepare-volume/prepare-volume.h	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/prepare-volume/prepare-volume.h	2020-01-17 13:31:52.960729296 +0300
+diff --git a/src/prepare-volume/prepare-volume.h b/src/prepare-volume/prepare-volume.h
+index 0497eb4..33d18f2 100644
+--- a/src/prepare-volume/prepare-volume.h
++++ b/src/prepare-volume/prepare-volume.h
 @@ -22,8 +22,7 @@
  #pragma once
  
@@ -692,9 +757,10 @@ diff -pruN a/src/prepare-volume/prepare-volume.h b/src/prepare-volume/prepare-vo
 -#include <strsafe.h>
  
  #include "log.h"
-diff -pruN a/src/prepare-volume/wait-for-volume.c b/src/prepare-volume/wait-for-volume.c
---- a/src/prepare-volume/wait-for-volume.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/prepare-volume/wait-for-volume.c	2020-01-17 13:31:52.961729298 +0300
+diff --git a/src/prepare-volume/wait-for-volume.c b/src/prepare-volume/wait-for-volume.c
+index 5b850b5..6061948 100644
+--- a/src/prepare-volume/wait-for-volume.c
++++ b/src/prepare-volume/wait-for-volume.c
 @@ -38,7 +38,7 @@ static void MessagePump(void)
      {
          if (retval == -1)
@@ -740,7 +806,7 @@ diff -pruN a/src/prepare-volume/wait-for-volume.c b/src/prepare-volume/wait-for-
          return FALSE;
      }
  
-@@ -204,7 +204,7 @@ static DWORD WINAPI DevNotifyThread(void
+@@ -204,7 +204,7 @@ static DWORD WINAPI DevNotifyThread(void *param)
  
      if (hWnd == NULL)
      {
@@ -767,9 +833,10 @@ diff -pruN a/src/prepare-volume/wait-for-volume.c b/src/prepare-volume/wait-for-
          return 0;
      }
  
-diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
---- a/src/qrexec-agent/qrexec-agent.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-agent/qrexec-agent.c	2020-01-17 13:31:52.961729298 +0300
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index 69d56ae..072bd5a 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
 @@ -22,10 +22,10 @@
  #include <windows.h>
  #include <stdlib.h>
@@ -783,7 +850,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
  
  #include "qrexec-agent.h"
  
-@@ -191,7 +191,7 @@ static DWORD Utf8WithBomToUtf16(IN const
+@@ -191,7 +191,7 @@ static DWORD Utf8WithBomToUtf16(IN const char *stringUtf8, IN size_t cbStringUtf
          hresult = StringCbCopyW(bufferUtf16, cbStringUtf8 - cbSkipChars + sizeof(WCHAR), (STRSAFE_LPCWSTR)(stringUtf8 + cbSkipChars));
          if (FAILED(hresult))
          {
@@ -792,7 +859,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
              free(bufferUtf16);
              return hresult;
          }
-@@ -215,7 +215,7 @@ static DWORD Utf8WithBomToUtf16(IN const
+@@ -215,7 +215,7 @@ static DWORD Utf8WithBomToUtf16(IN const char *stringUtf8, IN size_t cbStringUtf
      status = ConvertUTF8ToUTF16(stringUtf8 + cbSkipChars, stringUtf16, NULL);
      if (ERROR_SUCCESS != status)
      {
@@ -801,7 +868,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
      }
  
      LogVerbose("success");
-@@ -309,7 +309,7 @@ static DWORD ParseUtf8Command(IN const c
+@@ -309,7 +309,7 @@ static DWORD ParseUtf8Command(IN const char *commandUtf8, OUT WCHAR **commandUtf
      status = ConvertUTF8ToUTF16(commandUtf8, commandUtf16, NULL);
      if (ERROR_SUCCESS != status)
      {
@@ -810,7 +877,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
      }
  
      LogInfo("Command: %s", *commandUtf16);
-@@ -396,7 +396,7 @@ static DWORD InterceptRPCRequest(IN OUT
+@@ -396,7 +396,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
              *sourceDomainName = _wcsdup(separator);
              if (*sourceDomainName == NULL)
              {
@@ -819,7 +886,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
              }
              LogDebug("source domain: '%s'", *sourceDomainName);
          }
-@@ -415,7 +415,7 @@ static DWORD InterceptRPCRequest(IN OUT
+@@ -415,7 +415,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
          {
              status = GetLastError();
              free(*sourceDomainName);
@@ -828,7 +895,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
          }
          // cut off file name (qrexec_agent.exe)
          separator = wcsrchr(serviceFilePath, L'\\');
-@@ -490,7 +490,7 @@ static DWORD InterceptRPCRequest(IN OUT
+@@ -490,7 +490,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
  
          if (serviceConfigFile == INVALID_HANDLE_VALUE)
          {
@@ -837,7 +904,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
              free(*sourceDomainName);
              LogError("Failed to open service '%s' configuration file (%s)", serviceName, serviceFilePath);
              return status;
-@@ -501,7 +501,7 @@ static DWORD InterceptRPCRequest(IN OUT
+@@ -501,7 +501,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
  
          if (!ReadFile(serviceConfigFile, serviceConfigContents, sizeof(WCHAR) * MAX_PATH, &cbRead, NULL))
          {
@@ -846,7 +913,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
              free(*sourceDomainName);
              LogError("Failed to read RPC %s configuration file (%s)", serviceName, serviceFilePath);
              CloseHandle(serviceConfigFile);
-@@ -512,7 +512,7 @@ static DWORD InterceptRPCRequest(IN OUT
+@@ -512,7 +512,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
          status = Utf8WithBomToUtf16(serviceConfigContents, cbRead, &rawServiceFilePath);
          if (status != ERROR_SUCCESS)
          {
@@ -855,7 +922,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
              free(*sourceDomainName);
              LogError("Failed to parse the encoding in RPC '%s' configuration file (%s)", serviceName, serviceFilePath);
              return status;
-@@ -559,7 +559,7 @@ static DWORD InterceptRPCRequest(IN OUT
+@@ -559,7 +559,7 @@ static DWORD InterceptRPCRequest(IN OUT WCHAR *commandLine, OUT WCHAR **serviceC
          if (*serviceCommandLine == NULL)
          {
              free(*sourceDomainName);
@@ -864,7 +931,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
          }
          LogDebug("RPC %s: %s\n", serviceName, *serviceCommandLine);
      }
-@@ -738,7 +738,7 @@ DWORD HandleServiceConnect(IN const stru
+@@ -738,7 +738,7 @@ DWORD HandleServiceConnect(IN const struct msg_header *header)
      // TODO: should all service handlers run as current user (SYSTEM)?
      status = StartChild(params->connect_domain, params->connect_port, NULL, context->CommandLine, TRUE, TRUE, TRUE);
      if (ERROR_SUCCESS != status)
@@ -882,7 +949,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
  
      switch (header.type)
      {
-@@ -991,14 +991,14 @@ static DWORD WatchForEvents(HANDLE stopE
+@@ -991,14 +991,14 @@ static DWORD WatchForEvents(HANDLE stopEvent)
  
      // Don't do anything before qdb is available, otherwise advertise-tools may fail.
      if (!WaitForQdb())
@@ -899,7 +966,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
  
      LogDebug("port %d: daemon vchan = %p", VCHAN_BASE_PORT, g_DaemonVchan);
      LogInfo("Waiting for qrexec daemon connection, write buffer size: %d", VchanGetWriteBufferSize(g_DaemonVchan));
-@@ -1027,7 +1027,7 @@ static DWORD WatchForEvents(HANDLE stopE
+@@ -1027,7 +1027,7 @@ static DWORD WatchForEvents(HANDLE stopEvent)
  
          if (signaledEvent != 1)
          {
@@ -908,7 +975,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
              break;
          }
  
-@@ -1055,7 +1055,7 @@ static DWORD WatchForEvents(HANDLE stopE
+@@ -1055,7 +1055,7 @@ static DWORD WatchForEvents(HANDLE stopEvent)
              }
              else
              {
@@ -917,7 +984,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
                  // this is non-fatal?
              }
              continue;
-@@ -1075,7 +1075,7 @@ static DWORD WatchForEvents(HANDLE stopE
+@@ -1075,7 +1075,7 @@ static DWORD WatchForEvents(HANDLE stopEvent)
              if (ERROR_SUCCESS != status)
              {
                  run = FALSE;
@@ -926,7 +993,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
                  goto out;
              }
          }
-@@ -1134,7 +1134,7 @@ DWORD WINAPI PipeClientThread(PVOID para
+@@ -1134,7 +1134,7 @@ DWORD WINAPI PipeClientThread(PVOID param)
      status = QpsRead(g_PipeServer, clientId, &context->ServiceParams, sizeof(context->ServiceParams));
      if (ERROR_SUCCESS != status)
      {
@@ -935,7 +1002,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
          goto cleanup;
      }
  
-@@ -1142,7 +1142,7 @@ DWORD WINAPI PipeClientThread(PVOID para
+@@ -1142,7 +1142,7 @@ DWORD WINAPI PipeClientThread(PVOID param)
      status = QpsRead(g_PipeServer, clientId, &commandSize, sizeof(commandSize));
      if (ERROR_SUCCESS != status)
      {
@@ -944,7 +1011,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
          goto cleanup;
      }
  
-@@ -1156,7 +1156,7 @@ DWORD WINAPI PipeClientThread(PVOID para
+@@ -1156,7 +1156,7 @@ DWORD WINAPI PipeClientThread(PVOID param)
      status = QpsRead(g_PipeServer, clientId, context->CommandLine, (DWORD)commandSize);
      if (ERROR_SUCCESS != status)
      {
@@ -953,7 +1020,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
          goto cleanup;
      }
  
-@@ -1204,7 +1204,7 @@ void ClientConnectedCallback(PIPE_SERVER
+@@ -1204,7 +1204,7 @@ void ClientConnectedCallback(PIPE_SERVER server, LONGLONG id, PVOID context)
      clientThread = CreateThread(NULL, 0, PipeClientThread, (PVOID)id, 0, NULL);
      if (!clientThread)
      {
@@ -962,7 +1029,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
          return;
      }
      CloseHandle(clientThread);
-@@ -1242,7 +1242,7 @@ DWORD WINAPI ServiceExecutionThread(void
+@@ -1242,7 +1242,7 @@ DWORD WINAPI ServiceExecutionThread(void *param)
  
      status = CreatePublicPipeSecurityDescriptor(&sd, &acl);
      if (status != ERROR_SUCCESS)
@@ -971,7 +1038,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
  
      sa.nLength = sizeof(sa);
      sa.bInheritHandle = FALSE;
-@@ -1260,7 +1260,7 @@ DWORD WINAPI ServiceExecutionThread(void
+@@ -1260,7 +1260,7 @@ DWORD WINAPI ServiceExecutionThread(void *param)
                         &g_PipeServer);
  
      if (ERROR_SUCCESS != status)
@@ -980,7 +1047,7 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
  
      LogVerbose("pipe server: %p", g_PipeServer);
  
-@@ -1268,14 +1268,14 @@ DWORD WINAPI ServiceExecutionThread(void
+@@ -1268,14 +1268,14 @@ DWORD WINAPI ServiceExecutionThread(void *param)
      if (!pipeServerThread)
      {
          status = GetLastError();
@@ -997,10 +1064,11 @@ diff -pruN a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
  
  // FIXME: pipe server doesn't have the ability for graceful stop
  
-diff -pruN a/src/qrexec-client-vm/qrexec-client-vm.c b/src/qrexec-client-vm/qrexec-client-vm.c
---- a/src/qrexec-client-vm/qrexec-client-vm.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-client-vm/qrexec-client-vm.c	2020-01-17 13:31:52.961729298 +0300
-@@ -62,22 +62,22 @@ int __cdecl wmain(int argc, WCHAR *argv[
+diff --git a/src/qrexec-client-vm/qrexec-client-vm.c b/src/qrexec-client-vm/qrexec-client-vm.c
+index 229f319..11ba892 100644
+--- a/src/qrexec-client-vm/qrexec-client-vm.c
++++ b/src/qrexec-client-vm/qrexec-client-vm.c
+@@ -62,22 +62,22 @@ int __cdecl wmain(int argc, WCHAR *argv[])
      argumentUtf8 = NULL;
      status = ConvertUTF16ToUTF8(serviceName, &argumentUtf8, NULL);
      if (ERROR_SUCCESS != status)
@@ -1027,7 +1095,7 @@ diff -pruN a/src/qrexec-client-vm/qrexec-client-vm.c b/src/qrexec-client-vm/qrex
  
      ConvertFree(argumentUtf8);
      argumentUtf8 = NULL;
-@@ -85,20 +85,20 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -85,20 +85,20 @@ int __cdecl wmain(int argc, WCHAR *argv[])
      LogDebug("Connecting to qrexec-agent");
  
      if (ERROR_SUCCESS != QpsConnect(pipeName, &readPipe, &writePipe))
@@ -1052,9 +1120,10 @@ diff -pruN a/src/qrexec-client-vm/qrexec-client-vm.c b/src/qrexec-client-vm/qrex
  
      CloseHandle(writePipe);
  
-diff -pruN a/src/qrexec-services/clipboard-copy/clipboard-copy.c b/src/qrexec-services/clipboard-copy/clipboard-copy.c
---- a/src/qrexec-services/clipboard-copy/clipboard-copy.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/clipboard-copy/clipboard-copy.c	2020-01-17 13:31:52.962729301 +0300
+diff --git a/src/qrexec-services/clipboard-copy/clipboard-copy.c b/src/qrexec-services/clipboard-copy/clipboard-copy.c
+index 8b571c0..bbc7f99 100644
+--- a/src/qrexec-services/clipboard-copy/clipboard-copy.c
++++ b/src/qrexec-services/clipboard-copy/clipboard-copy.c
 @@ -20,7 +20,7 @@
   */
  
@@ -1064,7 +1133,7 @@ diff -pruN a/src/qrexec-services/clipboard-copy/clipboard-copy.c b/src/qrexec-se
  #include <strsafe.h>
  #include <stdlib.h>
  
-@@ -42,14 +42,14 @@ BOOL WriteClipboardText(IN HWND window,
+@@ -42,14 +42,14 @@ BOOL WriteClipboardText(IN HWND window, OUT HANDLE outputFile)
  
      if (!OpenClipboard(window))
      {
@@ -1081,7 +1150,7 @@ diff -pruN a/src/qrexec-services/clipboard-copy/clipboard-copy.c b/src/qrexec-se
          CloseClipboard();
          return FALSE;
      }
-@@ -57,14 +57,14 @@ BOOL WriteClipboardText(IN HWND window,
+@@ -57,14 +57,14 @@ BOOL WriteClipboardText(IN HWND window, OUT HANDLE outputFile)
      clipText = GlobalLock(clipData);
      if (!clipText)
      {
@@ -1098,7 +1167,7 @@ diff -pruN a/src/qrexec-services/clipboard-copy/clipboard-copy.c b/src/qrexec-se
          GlobalUnlock(clipData);
          CloseClipboard();
          return FALSE;
-@@ -72,7 +72,7 @@ BOOL WriteClipboardText(IN HWND window,
+@@ -72,7 +72,7 @@ BOOL WriteClipboardText(IN HWND window, OUT HANDLE outputFile)
  
      if (!QioWriteBuffer(outputFile, clipTextUtf8, (DWORD)cbTextUtf8))
      {
@@ -1107,7 +1176,7 @@ diff -pruN a/src/qrexec-services/clipboard-copy/clipboard-copy.c b/src/qrexec-se
          GlobalUnlock(clipData);
          CloseClipboard();
          return FALSE;
-@@ -90,7 +90,7 @@ int APIENTRY wWinMain(HINSTANCE instance
+@@ -90,7 +90,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE previousInstance, WCHAR *com
      stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
      if (stdOut == INVALID_HANDLE_VALUE)
      {
@@ -1116,9 +1185,10 @@ diff -pruN a/src/qrexec-services/clipboard-copy/clipboard-copy.c b/src/qrexec-se
          return 1;
      }
      if (!WriteClipboardText(NULL, stdOut))
-diff -pruN a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-services/clipboard-paste/clipboard-paste.c
---- a/src/qrexec-services/clipboard-paste/clipboard-paste.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/clipboard-paste/clipboard-paste.c	2020-01-17 13:31:52.962729301 +0300
+diff --git a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-services/clipboard-paste/clipboard-paste.c
+index cb12a1d..58d215b 100644
+--- a/src/qrexec-services/clipboard-paste/clipboard-paste.c
++++ b/src/qrexec-services/clipboard-paste/clipboard-paste.c
 @@ -20,7 +20,7 @@
   */
  
@@ -1128,7 +1198,7 @@ diff -pruN a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-
  #include <strsafe.h>
  #include <stdlib.h>
  
-@@ -57,21 +57,21 @@ BOOL ReadClipboardText(IN HWND window, I
+@@ -57,21 +57,21 @@ BOOL ReadClipboardText(IN HWND window, IN HANDLE inputFile)
  
      if (ERROR_SUCCESS != ConvertUTF8ToUTF16(inputText, &text, &cchText))
      {
@@ -1153,7 +1223,7 @@ diff -pruN a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-
          GlobalFree(clipData);
          goto fail;
      }
-@@ -83,14 +83,14 @@ BOOL ReadClipboardText(IN HWND window, I
+@@ -83,14 +83,14 @@ BOOL ReadClipboardText(IN HWND window, IN HANDLE inputFile)
  
      if (!OpenClipboard(window))
      {
@@ -1170,7 +1240,7 @@ diff -pruN a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-
          GlobalFree(clipData);
          CloseClipboard();
          goto fail;
-@@ -98,7 +98,7 @@ BOOL ReadClipboardText(IN HWND window, I
+@@ -98,7 +98,7 @@ BOOL ReadClipboardText(IN HWND window, IN HANDLE inputFile)
  
      if (!SetClipboardData(CLIPBOARD_FORMAT, clipData))
      {
@@ -1179,7 +1249,7 @@ diff -pruN a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-
          GlobalFree(clipData);
          CloseClipboard();
          goto fail;
-@@ -133,7 +133,7 @@ HWND CreateMainWindow(IN HINSTANCE insta
+@@ -133,7 +133,7 @@ HWND CreateMainWindow(IN HINSTANCE instance)
      windowClassAtom = RegisterClassEx(&wc);
      if (!windowClassAtom)
      {
@@ -1188,7 +1258,7 @@ diff -pruN a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-
          return NULL;
      }
  
-@@ -157,13 +157,13 @@ int APIENTRY wWinMain(HINSTANCE instance
+@@ -157,13 +157,13 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE previousInstance, WCHAR *com
      stdIn = GetStdHandle(STD_INPUT_HANDLE);
      if (stdIn == INVALID_HANDLE_VALUE)
      {
@@ -1204,30 +1274,10 @@ diff -pruN a/src/qrexec-services/clipboard-paste/clipboard-paste.c b/src/qrexec-
      }
  
      if (!ReadClipboardText(window, stdIn))
-diff -pruN a/src/qrexec-services/common/filecopy.c b/src/qrexec-services/common/filecopy.c
---- a/src/qrexec-services/common/filecopy.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/common/filecopy.c	2020-01-17 13:31:52.962729301 +0300
-@@ -19,7 +19,7 @@
-  *
-  */
- 
--#include <Windows.h>
-+#include <windows.h>
- 
- #include "filecopy.h"
- #include "crc32.h"
-@@ -43,7 +43,7 @@ FC_COPY_STATUS FcCopyFile(IN HANDLE outp
- 
-         if (!ReadFile(input, buffer, cbToRead, &cbRead, NULL))
-         {
--            perror("ReadFile");
-+            win_perror("ReadFile");
-             return COPY_FILE_READ_ERROR;
-         }
- 
-diff -pruN a/src/qrexec-services/common/filecopy-error.c b/src/qrexec-services/common/filecopy-error.c
---- a/src/qrexec-services/common/filecopy-error.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/common/filecopy-error.c	2020-01-17 13:31:52.962729301 +0300
+diff --git a/src/qrexec-services/common/filecopy-error.c b/src/qrexec-services/common/filecopy-error.c
+index ad6f518..a5deab9 100644
+--- a/src/qrexec-services/common/filecopy-error.c
++++ b/src/qrexec-services/common/filecopy-error.c
 @@ -22,7 +22,7 @@
  #include <windows.h>
  #include <stdio.h>
@@ -1237,9 +1287,32 @@ diff -pruN a/src/qrexec-services/common/filecopy-error.c b/src/qrexec-services/c
  
  #include <log.h>
  
-diff -pruN a/src/qrexec-services/common/linux.h b/src/qrexec-services/common/linux.h
---- a/src/qrexec-services/common/linux.h	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/common/linux.h	2020-01-17 13:31:52.962729301 +0300
+diff --git a/src/qrexec-services/common/filecopy.c b/src/qrexec-services/common/filecopy.c
+index 9652809..a496364 100644
+--- a/src/qrexec-services/common/filecopy.c
++++ b/src/qrexec-services/common/filecopy.c
+@@ -19,7 +19,7 @@
+  *
+  */
+ 
+-#include <Windows.h>
++#include <windows.h>
+ 
+ #include "filecopy.h"
+ #include "crc32.h"
+@@ -43,7 +43,7 @@ FC_COPY_STATUS FcCopyFile(IN HANDLE output, IN HANDLE input, IN UINT64 size, OUT
+ 
+         if (!ReadFile(input, buffer, cbToRead, &cbRead, NULL))
+         {
+-            perror("ReadFile");
++            win_perror("ReadFile");
+             return COPY_FILE_READ_ERROR;
+         }
+ 
+diff --git a/src/qrexec-services/common/linux.h b/src/qrexec-services/common/linux.h
+index bebf4b6..376f0bb 100644
+--- a/src/qrexec-services/common/linux.h
++++ b/src/qrexec-services/common/linux.h
 @@ -24,6 +24,7 @@
  #define UNIX_EPOCH_OFFSET 11644478640LL
  
@@ -1248,9 +1321,10 @@ diff -pruN a/src/qrexec-services/common/linux.h b/src/qrexec-services/common/lin
  #define ENAMETOOLONG    36      /* File name too long */
  #define EDQUOT          122     /* Quota exceeded */
  
-diff -pruN a/src/qrexec-services/file-receiver/file-receiver.c b/src/qrexec-services/file-receiver/file-receiver.c
---- a/src/qrexec-services/file-receiver/file-receiver.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/file-receiver/file-receiver.c	2020-01-17 13:31:52.963729303 +0300
+diff --git a/src/qrexec-services/file-receiver/file-receiver.c b/src/qrexec-services/file-receiver/file-receiver.c
+index 274c787..d474502 100644
+--- a/src/qrexec-services/file-receiver/file-receiver.c
++++ b/src/qrexec-services/file-receiver/file-receiver.c
 @@ -22,13 +22,16 @@
  #include <windows.h>
  #include <stdio.h>
@@ -1271,7 +1345,7 @@ diff -pruN a/src/qrexec-services/file-receiver/file-receiver.c b/src/qrexec-serv
  #include "wdk.h"
  
  HANDLE g_stdin = INVALID_HANDLE_VALUE;
-@@ -70,19 +73,19 @@ ULONG MapDriveLetter(IN const WCHAR *tar
+@@ -70,19 +73,19 @@ ULONG MapDriveLetter(IN const WCHAR *targetDirectory, OUT WCHAR *driveLetter)
  
      if (FAILED(hresult))
      {
@@ -1294,7 +1368,7 @@ diff -pruN a/src/qrexec-services/file-receiver/file-receiver.c b/src/qrexec-serv
      }
  
      // Translate the directory path to a form of \Device\HarddiskVolumeN\path
-@@ -95,7 +98,7 @@ ULONG MapDriveLetter(IN const WCHAR *tar
+@@ -95,7 +98,7 @@ ULONG MapDriveLetter(IN const WCHAR *targetDirectory, OUT WCHAR *driveLetter)
  
      if (FAILED(hresult))
      {
@@ -1303,7 +1377,7 @@ diff -pruN a/src/qrexec-services/file-receiver/file-receiver.c b/src/qrexec-serv
      }
  
      logicalDrives = GetLogicalDrives();
-@@ -160,30 +163,30 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -160,30 +163,30 @@ int __cdecl wmain(int argc, WCHAR *argv[])
      g_stderr = GetStdHandle(STD_ERROR_HANDLE);
      if (g_stderr == NULL || g_stderr == INVALID_HANDLE_VALUE)
      {
@@ -1339,7 +1413,7 @@ diff -pruN a/src/qrexec-services/file-receiver/file-receiver.c b/src/qrexec-serv
      }
  
      hresult = StringCchPrintf(
-@@ -198,19 +201,19 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -198,19 +201,19 @@ int __cdecl wmain(int argc, WCHAR *argv[])
  
      if (FAILED(hresult))
      {
@@ -1362,9 +1436,10 @@ diff -pruN a/src/qrexec-services/file-receiver/file-receiver.c b/src/qrexec-serv
      }
  
      return ReceiveFiles();
-diff -pruN a/src/qrexec-services/file-receiver/unpack.c b/src/qrexec-services/file-receiver/unpack.c
---- a/src/qrexec-services/file-receiver/unpack.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/file-receiver/unpack.c	2020-01-17 13:31:52.963729303 +0300
+diff --git a/src/qrexec-services/file-receiver/unpack.c b/src/qrexec-services/file-receiver/unpack.c
+index b99789e..0312970 100644
+--- a/src/qrexec-services/file-receiver/unpack.c
++++ b/src/qrexec-services/file-receiver/unpack.c
 @@ -23,8 +23,8 @@
  #include <stdio.h>
  #include <stdlib.h>
@@ -1376,9 +1451,10 @@ diff -pruN a/src/qrexec-services/file-receiver/unpack.c b/src/qrexec-services/fi
  
  #include <utf8-conv.h>
  #include <qubes-io.h>
-diff -pruN a/src/qrexec-services/file-sender/file-sender.c b/src/qrexec-services/file-sender/file-sender.c
---- a/src/qrexec-services/file-sender/file-sender.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/file-sender/file-sender.c	2020-01-17 13:31:52.963729303 +0300
+diff --git a/src/qrexec-services/file-sender/file-sender.c b/src/qrexec-services/file-sender/file-sender.c
+index 5f43c7d..5049b5d 100644
+--- a/src/qrexec-services/file-sender/file-sender.c
++++ b/src/qrexec-services/file-sender/file-sender.c
 @@ -24,9 +24,9 @@
  #include <stdio.h>
  #include <stdlib.h>
@@ -1392,15 +1468,18 @@ diff -pruN a/src/qrexec-services/file-sender/file-sender.c b/src/qrexec-services
  
  #include <log.h>
  #include <utf8-conv.h>
-diff -pruN a/src/qrexec-services/file-sender/file-sender.rc b/src/qrexec-services/file-sender/file-sender.rc
---- a/src/qrexec-services/file-sender/file-sender.rc	1970-01-01 03:00:00.000000000 +0300
-+++ b/src/qrexec-services/file-sender/file-sender.rc	2020-01-17 13:31:52.963729303 +0300
+diff --git a/src/qrexec-services/file-sender/file-sender.rc b/src/qrexec-services/file-sender/file-sender.rc
+new file mode 100644
+index 0000000..1a24fa7
+--- /dev/null
++++ b/src/qrexec-services/file-sender/file-sender.rc
 @@ -0,0 +1,2 @@
 +#include "winuser.h"
 +1 RT_MANIFEST file-sender.exe.manifest
-diff -pruN a/src/qrexec-services/file-sender/gui-progress.c b/src/qrexec-services/file-sender/gui-progress.c
---- a/src/qrexec-services/file-sender/gui-progress.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/file-sender/gui-progress.c	2020-01-17 13:31:52.963729303 +0300
+diff --git a/src/qrexec-services/file-sender/gui-progress.c b/src/qrexec-services/file-sender/gui-progress.c
+index 9fdf89b..84613bb 100644
+--- a/src/qrexec-services/file-sender/gui-progress.c
++++ b/src/qrexec-services/file-sender/gui-progress.c
 @@ -99,7 +99,7 @@ static void CreateProgressWindow(void)
      g_progressWindowThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE) TaskDialogThread, NULL, 0, NULL);
      if (!g_progressWindowThread)
@@ -1410,22 +1489,23 @@ diff -pruN a/src/qrexec-services/file-sender/gui-progress.c b/src/qrexec-service
          return;
      }
  
-diff -pruN a/src/qrexec-services/get-image-rgba/get-image-rgba.c b/src/qrexec-services/get-image-rgba/get-image-rgba.c
---- a/src/qrexec-services/get-image-rgba/get-image-rgba.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/get-image-rgba/get-image-rgba.c	2020-01-17 13:35:57.965294035 +0300
+diff --git a/src/qrexec-services/get-image-rgba/get-image-rgba.c b/src/qrexec-services/get-image-rgba/get-image-rgba.c
+index 6b941ee..ce84104 100644
+--- a/src/qrexec-services/get-image-rgba/get-image-rgba.c
++++ b/src/qrexec-services/get-image-rgba/get-image-rgba.c
 @@ -20,9 +20,9 @@
   */
-
+ 
  #include <windows.h>
 -#include <Shlwapi.h>
 +#include <shlwapi.h>
  #include <shellapi.h>
 -#include <CommCtrl.h>
 +#include <commctrl.h>
-
+ 
  #include <stdio.h>
  #include <io.h>
-@@ -51,7 +51,7 @@ DWORD GetShortcutPath(OUT WCHAR *linkPat
+@@ -51,7 +51,7 @@ DWORD GetShortcutPath(OUT WCHAR *linkPath, IN DWORD linkPathLength)
      size = QioReadUntilEof(GetStdHandle(STD_INPUT_HANDLE), param, sizeof(param) - 1);
      if (size == 0)
      {
@@ -1434,7 +1514,7 @@ diff -pruN a/src/qrexec-services/get-image-rgba/get-image-rgba.c b/src/qrexec-se
          goto cleanup;
      }
  
-@@ -76,7 +76,7 @@ DWORD GetShortcutPath(OUT WCHAR *linkPat
+@@ -76,7 +76,7 @@ DWORD GetShortcutPath(OUT WCHAR *linkPath, IN DWORD linkPathLength)
      // convert ascii to wchar
      if (ERROR_SUCCESS != ConvertUTF8ToUTF16(param, &valueName, NULL))
      {
@@ -1443,7 +1523,7 @@ diff -pruN a/src/qrexec-services/get-image-rgba/get-image-rgba.c b/src/qrexec-se
          goto cleanup;
      }
  
-@@ -85,7 +85,7 @@ DWORD GetShortcutPath(OUT WCHAR *linkPat
+@@ -85,7 +85,7 @@ DWORD GetShortcutPath(OUT WCHAR *linkPath, IN DWORD linkPathLength)
      SetLastError(status = RegOpenKeyEx(HKEY_LOCAL_MACHINE, APP_MAP_KEY, 0, KEY_READ, &key));
      if (status != ERROR_SUCCESS)
      {
@@ -1452,7 +1532,7 @@ diff -pruN a/src/qrexec-services/get-image-rgba/get-image-rgba.c b/src/qrexec-se
          goto cleanup;
      }
  
-@@ -93,14 +93,14 @@ DWORD GetShortcutPath(OUT WCHAR *linkPat
+@@ -93,14 +93,14 @@ DWORD GetShortcutPath(OUT WCHAR *linkPath, IN DWORD linkPathLength)
      SetLastError(status = RegQueryValueEx(key, valueName + strlen(INPUT_PREFIX), NULL, &valueType, (BYTE *) linkPath, &size));
      if (status != ERROR_SUCCESS)
      {
@@ -1504,9 +1584,10 @@ diff -pruN a/src/qrexec-services/get-image-rgba/get-image-rgba.c b/src/qrexec-se
          goto cleanup;
      }
  
-diff -pruN a/src/qrexec-services/open-in-vm/qopen-in-vm.c b/src/qrexec-services/open-in-vm/qopen-in-vm.c
---- a/src/qrexec-services/open-in-vm/qopen-in-vm.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/open-in-vm/qopen-in-vm.c	2020-01-17 13:31:52.964729305 +0300
+diff --git a/src/qrexec-services/open-in-vm/qopen-in-vm.c b/src/qrexec-services/open-in-vm/qopen-in-vm.c
+index d41c1ce..1f27434 100644
+--- a/src/qrexec-services/open-in-vm/qopen-in-vm.c
++++ b/src/qrexec-services/open-in-vm/qopen-in-vm.c
 @@ -19,7 +19,7 @@
   *
   */
@@ -1516,10 +1597,11 @@ diff -pruN a/src/qrexec-services/open-in-vm/qopen-in-vm.c b/src/qrexec-services/
  #include <stdio.h>
  #include <strsafe.h>
  #include <string.h>
-diff -pruN a/src/qrexec-services/open-url/open-url.c b/src/qrexec-services/open-url/open-url.c
---- a/src/qrexec-services/open-url/open-url.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/open-url/open-url.c	2020-01-17 13:31:52.964729305 +0300
-@@ -45,7 +45,7 @@ int APIENTRY wWinMain(HINSTANCE instance
+diff --git a/src/qrexec-services/open-url/open-url.c b/src/qrexec-services/open-url/open-url.c
+index f28504e..b306580 100644
+--- a/src/qrexec-services/open-url/open-url.c
++++ b/src/qrexec-services/open-url/open-url.c
+@@ -45,7 +45,7 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE previousInstance, WCHAR *com
  #pragma warning(suppress:4311)
      if ((int)ShellExecuteA(NULL, "open", Url, NULL, NULL, SW_SHOWNORMAL) <= 32)
      {
@@ -1528,9 +1610,10 @@ diff -pruN a/src/qrexec-services/open-url/open-url.c b/src/qrexec-services/open-
          return GetLastError();
      }
  
-diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-services/vm-file-editor/vm-file-editor.c
---- a/src/qrexec-services/vm-file-editor/vm-file-editor.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/vm-file-editor/vm-file-editor.c	2020-01-17 13:31:52.965729308 +0300
+diff --git a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-services/vm-file-editor/vm-file-editor.c
+index b52b17b..a669110 100644
+--- a/src/qrexec-services/vm-file-editor/vm-file-editor.c
++++ b/src/qrexec-services/vm-file-editor/vm-file-editor.c
 @@ -19,13 +19,13 @@
   *
   */
@@ -1548,7 +1631,7 @@ diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-se
  
  #include <log.h>
  #include <utf8-conv.h>
-@@ -221,7 +221,7 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -221,7 +221,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
      g_stdIn = GetStdHandle(STD_INPUT_HANDLE);
      if (g_stdIn == INVALID_HANDLE_VALUE)
      {
@@ -1557,7 +1640,7 @@ diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-se
          fprintf(stderr, "Failed to open STDIN: 0x%x\n", exitCode);
          goto cleanup;
      }
-@@ -229,7 +229,7 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -229,7 +229,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
      g_stdOut = GetStdHandle(STD_OUTPUT_HANDLE);
      if (g_stdOut == INVALID_HANDLE_VALUE)
      {
@@ -1566,7 +1649,7 @@ diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-se
          fprintf(stderr, "Failed to open STDOUT: 0x%x\n", exitCode);
          goto cleanup;
      }
-@@ -240,7 +240,7 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -240,7 +240,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
  
      if (!GetFileAttributesEx(filePath, GetFileExInfoStandard, &attributesPre))
      {
@@ -1575,7 +1658,7 @@ diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-se
          fprintf(stderr, "Failed to get file attributes pre: 0x%x\n", exitCode);
          goto cleanup;
      }
-@@ -259,7 +259,7 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -259,7 +259,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
  
      if (!ShellExecuteEx(&sei))
      {
@@ -1584,7 +1667,7 @@ diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-se
          fprintf(stderr, "Editor startup failed: 0x%x\n", exitCode);
          goto cleanup;
      }
-@@ -276,7 +276,7 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -276,7 +276,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
  
      if (!GetExitCodeProcess(sei.hProcess, &childExitCode))
      {
@@ -1593,7 +1676,7 @@ diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-se
          fprintf(stderr, "Cannot get editor exit code: 0x%x\n", exitCode);
          goto cleanup;
      }
-@@ -294,7 +294,7 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -294,7 +294,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
  
      if (!GetFileAttributesEx(filePath, GetFileExInfoStandard, &attributesPost))
      {
@@ -1602,9 +1685,10 @@ diff -pruN a/src/qrexec-services/vm-file-editor/vm-file-editor.c b/src/qrexec-se
          fprintf(stderr, "Failed to get file attributes post: 0x%x\n", exitCode);
          goto cleanup;
      }
-diff -pruN a/src/qrexec-services/wait-for-logon/wait-for-logon.c b/src/qrexec-services/wait-for-logon/wait-for-logon.c
---- a/src/qrexec-services/wait-for-logon/wait-for-logon.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/wait-for-logon/wait-for-logon.c	2020-01-17 13:31:52.965729308 +0300
+diff --git a/src/qrexec-services/wait-for-logon/wait-for-logon.c b/src/qrexec-services/wait-for-logon/wait-for-logon.c
+index 042412a..d32358f 100644
+--- a/src/qrexec-services/wait-for-logon/wait-for-logon.c
++++ b/src/qrexec-services/wait-for-logon/wait-for-logon.c
 @@ -19,11 +19,11 @@
   *
   */
@@ -1638,7 +1722,7 @@ diff -pruN a/src/qrexec-services/wait-for-logon/wait-for-logon.c b/src/qrexec-se
          return FALSE;
      }
  
-@@ -126,7 +126,7 @@ HWND CreateMainWindow(HINSTANCE instance
+@@ -126,7 +126,7 @@ HWND CreateMainWindow(HINSTANCE instance)
      windowClassAtom = RegisterClassEx(&wc);
      if (!windowClassAtom)
      {
@@ -1647,7 +1731,7 @@ diff -pruN a/src/qrexec-services/wait-for-logon/wait-for-logon.c b/src/qrexec-se
          return NULL;
      }
  
-@@ -161,7 +161,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, H
+@@ -161,7 +161,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, WCHAR *pszCommandLin
          hStdIn = GetStdHandle(STD_INPUT_HANDLE);
          if (hStdIn == INVALID_HANDLE_VALUE)
          {
@@ -1656,7 +1740,7 @@ diff -pruN a/src/qrexec-services/wait-for-logon/wait-for-logon.c b/src/qrexec-se
              return 1;
          }
  
-@@ -183,7 +183,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, H
+@@ -183,7 +183,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, WCHAR *pszCommandLin
  
          if (ERROR_SUCCESS != ConvertUTF8ToUTF16(pszExpectedUserUtf8, &g_expectedUser, &cchExpectedUser))
          {
@@ -1665,7 +1749,7 @@ diff -pruN a/src/qrexec-services/wait-for-logon/wait-for-logon.c b/src/qrexec-se
              return 1;
          }
      }
-@@ -193,13 +193,13 @@ int APIENTRY wWinMain(HINSTANCE hInst, H
+@@ -193,13 +193,13 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInst, WCHAR *pszCommandLin
  
      if (hMainWindow == INVALID_HANDLE_VALUE)
      {
@@ -1681,9 +1765,10 @@ diff -pruN a/src/qrexec-services/wait-for-logon/wait-for-logon.c b/src/qrexec-se
          DestroyWindow(hMainWindow);
          return 1;
      }
-diff -pruN a/src/qrexec-services/window-icon-updater/window-icon-updater.c b/src/qrexec-services/window-icon-updater/window-icon-updater.c
---- a/src/qrexec-services/window-icon-updater/window-icon-updater.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-services/window-icon-updater/window-icon-updater.c	2020-01-17 13:31:52.965729308 +0300
+diff --git a/src/qrexec-services/window-icon-updater/window-icon-updater.c b/src/qrexec-services/window-icon-updater/window-icon-updater.c
+index 5e0b86b..3901714 100644
+--- a/src/qrexec-services/window-icon-updater/window-icon-updater.c
++++ b/src/qrexec-services/window-icon-updater/window-icon-updater.c
 @@ -87,7 +87,7 @@ BOOL CALLBACK EnumWindowsProc(
      // Create bitmap for the icon.
      if (!GetIconInfo(ico, &ii))
@@ -1693,9 +1778,10 @@ diff -pruN a/src/qrexec-services/window-icon-updater/window-icon-updater.c b/src
          goto cleanup;
      }
  
-diff -pruN a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wrapper.c
---- a/src/qrexec-wrapper/qrexec-wrapper.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/qrexec-wrapper/qrexec-wrapper.c	2020-01-17 13:36:44.302400845 +0300
+diff --git a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wrapper.c
+index 0870b6b..6d5e37d 100644
+--- a/src/qrexec-wrapper/qrexec-wrapper.c
++++ b/src/qrexec-wrapper/qrexec-wrapper.c
 @@ -25,9 +25,9 @@
  
  #include "qrexec-wrapper.h"
@@ -1811,7 +1897,7 @@ diff -pruN a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wra
                  exitCode = 0;
              }
  
-@@ -895,7 +895,7 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -895,7 +895,7 @@ int __cdecl wmain(int argc, WCHAR *argv[])
      status = CreatePublicPipeSecurityDescriptor(&child->PipeSd, &child->PipeAcl);
      if (ERROR_SUCCESS != status)
      {
@@ -1820,7 +1906,7 @@ diff -pruN a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wra
          goto cleanup;
      }
  
-@@ -908,14 +908,14 @@ int __cdecl wmain(int argc, WCHAR *argv[
+@@ -908,14 +908,14 @@ int __cdecl wmain(int argc, WCHAR *argv[])
          child->StdoutThread = CreateThread(NULL, 0, StdoutThread, child, 0, NULL);
          if (!child->StdoutThread)
          {
@@ -1837,9 +1923,10 @@ diff -pruN a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wra
              goto cleanup;
          }
  
-diff -pruN a/src/relocate-dir/main.c b/src/relocate-dir/main.c
---- a/src/relocate-dir/main.c	2019-06-20 03:55:59.000000000 +0300
-+++ b/src/relocate-dir/main.c	2020-01-17 13:31:52.966729310 +0300
+diff --git a/src/relocate-dir/main.c b/src/relocate-dir/main.c
+index 9f1d16b..b650e14 100644
+--- a/src/relocate-dir/main.c
++++ b/src/relocate-dir/main.c
 @@ -23,6 +23,10 @@
  
  HANDLE g_Heap;
@@ -1851,3 +1938,6 @@ diff -pruN a/src/relocate-dir/main.c b/src/relocate-dir/main.c
  __declspec(dllimport)
  int _vsnwprintf(
      wchar_t *buffer,
+-- 
+2.31.1
+

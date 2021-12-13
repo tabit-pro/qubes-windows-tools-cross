@@ -1,7 +1,17 @@
-diff -ruNp a/daemon/db-cmds.c b/daemon/db-cmds.c
---- qubes-core-qubesdb/daemon/db-cmds.c	2020-01-05 15:03:11.000000000 +0300
-+++ qubes-core-qubesdb/daemon/db-cmds.c	2020-01-21 15:32:23.536007757 +0300
-@@ -154,7 +154,9 @@ int write_vchan_or_client(struct db_daem
+From fcfa8310246b8ad8eaeade8d0cd2e49449a3a33c Mon Sep 17 00:00:00 2001
+From: Ivan Kardykov <kardykov@tabit.pro>
+Date: Thu, 9 Dec 2021 11:57:58 +0300
+Subject: [PATCH] fix win32 compilation
+
+---
+ daemon/db-cmds.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/daemon/db-cmds.c b/daemon/db-cmds.c
+index ba2f15b..67fae05 100644
+--- a/daemon/db-cmds.c
++++ b/daemon/db-cmds.c
+@@ -154,7 +154,9 @@ int write_vchan_or_client(struct db_daemon_data *d, struct client *c,
              return 1;
          write_queue = d->vchan_buffer;
      } else {
@@ -11,7 +21,7 @@ diff -ruNp a/daemon/db-cmds.c b/daemon/db-cmds.c
      }
  
  #ifdef WIN32
-@@ -168,9 +170,11 @@ int write_vchan_or_client(struct db_daem
+@@ -168,9 +170,11 @@ int write_vchan_or_client(struct db_daemon_data *d, struct client *c,
  
      /* now it's either vchan, or local client on Linux */
      while ((buf_datacount = buffer_datacount(write_queue))) {
@@ -23,7 +33,7 @@ diff -ruNp a/daemon/db-cmds.c b/daemon/db-cmds.c
              ret = vchan_write_nonblock(d->vchan, buffer_data(write_queue), buf_datacount);
          if (ret < 0) {
              if (errno == EAGAIN || errno == EWOULDBLOCK) {
-@@ -187,9 +191,11 @@ int write_vchan_or_client(struct db_daem
+@@ -187,9 +191,11 @@ int write_vchan_or_client(struct db_daemon_data *d, struct client *c,
  
      count = 0;
      while (count < data_len) {
@@ -35,3 +45,6 @@ diff -ruNp a/daemon/db-cmds.c b/daemon/db-cmds.c
              ret = vchan_write_nonblock(d->vchan, data+count, data_len-count);
          if (ret < 0) {
              if (errno == EAGAIN || errno == EWOULDBLOCK) {
+-- 
+2.31.1
+
