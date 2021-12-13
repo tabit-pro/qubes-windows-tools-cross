@@ -63,6 +63,7 @@ Patch203:	qubes-core-agent-windows-qrexec-agent-fix-relative-path-construct.patc
 Patch204:	qubes-core-agent-windows-relocate-dir-support-IO_REPARSE_TAG_APPEXECLINK.patch
 Patch205:	qubes-core-agent-windows-qrexec-service-wait-for-process-to-complete.patch
 Patch206:	qubes-core-agent-windows-qrexec-agent-fix-service-shutdown.patch
+Patch207:	qubes-core-agent-windows-Bugfix-advertise-tools-issues.patch
 
 Patch300:	qubes-core-qubesdb-mingw-fragments.patch
 Patch301:	qubes-core-qubesdb-fix-win32-compilation.patch
@@ -109,6 +110,7 @@ patch -d qubes-core-agent-windows -p1 < %{P:203}
 patch -d qubes-core-agent-windows -p1 < %{P:204}
 patch -d qubes-core-agent-windows -p1 < %{P:205}
 patch -d qubes-core-agent-windows -p1 < %{P:206}
+patch -d qubes-core-agent-windows -p1 < %{P:207}
 
 patch -d qubes-core-qubesdb -p1 < %{P:300}
 patch -d qubes-core-qubesdb -p1 < %{P:301}
