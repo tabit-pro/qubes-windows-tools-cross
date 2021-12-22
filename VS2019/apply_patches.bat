@@ -25,5 +25,15 @@ patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-daemon-fix-build-using
 
 patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-qrexec-agent-fix-service-shutdown.patch
 
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-qrexec-agent-qrexec-client-vm-remove-duplicated-erro.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-qrexec-wrapper-XifLogger-do-not-decrease-log-level.patch
+patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-db-daemon-decrease-log-level-add-more-detailed-log-d.patch
+patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qdb-client-remove-duplicated-error-logging.patch
+patch -Nfs -d qubes-core-vchan-xen -p1 < qubes-core-vchan-xen-core-vchan-xen-decrease-log-level-add-more-detailed-.patch
+patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-LogReadLevel-minor-improvements-.patch
+patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-remove-duplicated-error-logging-.patch
+patch -Nfs -d qubes-vmm-xen-windows-pvdrivers/xeniface -p1 < qubes-vmm-xen-windows-pvdrivers-xencontrol-decrease-log-level.patch
+patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-add-xenagent-dependency.patch
+
 popd
 

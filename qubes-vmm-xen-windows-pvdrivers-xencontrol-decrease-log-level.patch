@@ -1,0 +1,25 @@
+From aba742b2b4223180020115c5cbdc59adc76bcda6 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 10 Dec 2021 10:39:15 +0300
+Subject: [PATCH] xencontrol: decrease log level
+
+---
+ src/xencontrol/xencontrol.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/xencontrol/xencontrol.c b/src/xencontrol/xencontrol.c
+index f55d0a2..d0a4587 100644
+--- a/src/xencontrol/xencontrol.c
++++ b/src/xencontrol/xencontrol.c
+@@ -156,7 +156,7 @@ XcOpen(
+         goto fail;
+     }
+ 
+-    _Log(Logger, XLL_ERROR, Context->LogLevel, __FUNCTION__,
++    _Log(Logger, XLL_INFO, Context->LogLevel, __FUNCTION__,
+          L"XenIface handle: %p", Context->XenIface);
+ 
+     free(DetailData);
+-- 
+2.34.1.windows.1
+
