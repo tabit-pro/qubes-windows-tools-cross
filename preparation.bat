@@ -4,6 +4,8 @@ bcdedit /set {current} recoveryenabled no
 
 bcdedit /set {current} bootstatuspolicy ignoreallfailures
 
+powercfg -H off
+
 sc config defragsvc start= disabled
 
 sc config WSearch start= disabled
