@@ -81,6 +81,7 @@ Patch501:	qubes-windows-utils-LogReadLevel-minor-improvements-.patch
 Patch502:	qubes-windows-utils-remove-duplicated-error-logging-.patch
 
 Patch600:	qubes-installer-qubes-os-windows-tools-mingw-fragments.patch
+Patch601:	qubes-installer-qubes-os-windows-tools-power_settings-disable-hibernation.patch
 
 Patch700:	qubes-vmm-xen-windows-pvdrivers-mingw-fragments.patch
 
@@ -136,6 +137,7 @@ patch -d qubes-windows-utils -p1 < %{P:501}
 patch -d qubes-windows-utils -p1 < %{P:502}
 
 patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:600}
+patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:601}
 
 patch -d qubes-vmm-xen-windows-pvdrivers -p1 < %{P:700}
 
