@@ -1,0 +1,34 @@
+From dcfe3c8482f6d187f2aab644271dc95031086945 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Tue, 28 Dec 2021 17:45:08 +0300
+Subject: [PATCH] fix exception when command watch is used
+
+---
+ daemon/db-core.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/daemon/db-core.c b/daemon/db-core.c
+index ca0c526..9ed6193 100644
+--- a/daemon/db-core.c
++++ b/daemon/db-core.c
+@@ -192,7 +192,8 @@ int qubesdb_add_watch(struct qubesdb *db, char *path,
+     }
+     new_watch->next = db->watches;
+     db->watches = new_watch;
+-    new_watch->client = client;
++    new_watch->client = calloc(1, sizeof(*client));
++    memcpy(new_watch->client, client, sizeof(*client));
+     /* path already verified by caller */
+ #ifndef WIN32
+     strncpy(new_watch->path, path, QDB_MAX_PATH - 1);
+@@ -221,6 +222,7 @@ int qubesdb_remove_watch(struct qubesdb *db, char *path,
+                 db->watches = watch->next;
+             tmp_watch = watch;
+             watch = watch->next;
++            free(tmp_watch->client);
+             free(tmp_watch);
+             anything_removed = 1;
+             if (path)
+-- 
+2.34.1.windows.1
+
