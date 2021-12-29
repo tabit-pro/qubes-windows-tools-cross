@@ -34,6 +34,7 @@ patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-LogReadLevel-minor-i
 patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-remove-duplicated-error-logging-.patch
 patch -Nfs -d qubes-vmm-xen-windows-pvdrivers/xeniface -p1 < qubes-vmm-xen-windows-pvdrivers-xencontrol-decrease-log-level.patch
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-add-xenagent-dependency.patch
+patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-fix-errors-IOCTL_XENIFACE_GNTTAB_UNMA.patch
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-fix-exception-when-command-watch-is-used.patch
 
 popd
