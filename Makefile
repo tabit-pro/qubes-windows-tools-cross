@@ -74,7 +74,7 @@ $(DEVCON):
 
 get-sources: $(PVDRIVERS) $(BINARIES) $(DEVCON)
 get-sources:
-	git submodule update --init --recursive
+	git submodule update --init
 
 verify-sources:
 	@true
