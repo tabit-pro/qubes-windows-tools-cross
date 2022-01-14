@@ -1,0 +1,27 @@
+From 9579cb1f46ffcf8bd2212e624095a854fa7e2595 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 14 Jan 2022 18:17:14 +0300
+Subject: [PATCH] add msg type MSG_CONNECTION_TERMINATED
+
+---
+ include/qrexec.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/qrexec.h b/include/qrexec.h
+index 9a3583d..e8f48bc 100644
+--- a/include/qrexec.h
++++ b/include/qrexec.h
+@@ -58,6 +58,10 @@ enum
+      * struct trigger_service_params passed as data */
+     MSG_TRIGGER_SERVICE = 0x210,
+ 
++    /* connection was terminated, struct exec_params passed as data (with empty
++     * cmdline field) informs about released vchan port */
++    MSG_CONNECTION_TERMINATED,
++
+     /* common messages */
+     /* initialize connection, struct peer_info passed as data
+      * should be sent as the first message (server first, then client) */
+-- 
+2.34.1.windows.1
+

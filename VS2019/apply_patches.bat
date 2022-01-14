@@ -36,6 +36,8 @@ patch -Nfs -d qubes-vmm-xen-windows-pvdrivers/xeniface -p1 < qubes-vmm-xen-windo
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-add-xenagent-dependency.patch
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-fix-errors-IOCTL_XENIFACE_GNTTAB_UNMA.patch
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-fix-exception-when-command-watch-is-used.patch
+patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-add-msg-type-MSG_CONNECTION_TERMINATED.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-bugfix-HandleExec-send-MSG_CONNECTION_TERMINATED.patch
 
 popd
 
