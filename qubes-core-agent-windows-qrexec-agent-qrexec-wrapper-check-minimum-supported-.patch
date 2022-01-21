@@ -1,0 +1,49 @@
+From 1982d45507981f5b8322e8ffa03ae1457b934d49 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Fri, 21 Jan 2022 13:50:11 +0300
+Subject: [PATCH] qrexec-agent, qrexec-wrapper: check minimum supported
+ protocol version
+
+---
+ src/qrexec-agent/qrexec-agent.c     | 4 ++--
+ src/qrexec-wrapper/qrexec-wrapper.c | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/src/qrexec-agent/qrexec-agent.c b/src/qrexec-agent/qrexec-agent.c
+index 186d3a6..7ee08f4 100644
+--- a/src/qrexec-agent/qrexec-agent.c
++++ b/src/qrexec-agent/qrexec-agent.c
+@@ -1031,11 +1031,11 @@ static DWORD HandleDaemonHello(struct msg_header *header)
+     if (!VchanReceiveBuffer(g_DaemonVchan, &info, sizeof(info), L"peer info"))
+         return ERROR_INVALID_FUNCTION;
+ 
+-    if (info.version != QREXEC_PROTOCOL_VERSION)
++    if (info.version < QREXEC_PROTOCOL_VERSION)
+     {
+         LogWarning("incompatible protocol version (%d instead of %d)",
+                  info.version, QREXEC_PROTOCOL_VERSION);
+-        //return ERROR_INVALID_FUNCTION;
++        return ERROR_INVALID_FUNCTION;
+     }
+ 
+     LogDebug("received protocol version %d", info.version);
+diff --git a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wrapper.c
+index 1667e3c..7268e3e 100644
+--- a/src/qrexec-wrapper/qrexec-wrapper.c
++++ b/src/qrexec-wrapper/qrexec-wrapper.c
+@@ -549,10 +549,10 @@ DWORD HandleDataMessage(
+ 
+         LogDebug("protocol version %d", peerInfo.version);
+ 
+-        if (peerInfo.version != QREXEC_PROTOCOL_VERSION)
++        if (peerInfo.version < QREXEC_PROTOCOL_VERSION)
+         {
+             LogWarning("incompatible protocol version (got %d, expected %d)", peerInfo.version, QREXEC_PROTOCOL_VERSION);
+-            //return ERROR_INVALID_FUNCTION;
++            return ERROR_INVALID_FUNCTION;
+         }
+ 
+         if (!child->IsVchanServer) // we're vchan client, reply with HELLO
+-- 
+2.34.1.windows.1
+
