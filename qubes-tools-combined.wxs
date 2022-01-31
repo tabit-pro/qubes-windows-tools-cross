@@ -334,6 +334,7 @@ DowngradeErrorMessage="A later version of [ProductName] is already installed. Se
                         <File Id="qubes.GetImageRGBA" Source="bin\AnyCPU\qubes-rpc\qubes.GetImageRGBA"/>
                         <File Id="qubes.SetDateTime" Source="bin\AnyCPU\qubes-rpc\qubes.SetDateTime"/>
                         <File Id="qubes.OpenURL" Source="bin\AnyCPU\qubes-rpc\qubes.OpenURL"/>
+                        <File Id="qubes.SuspendPostAll" Source="bin\AnyCPU\qubes-rpc\qubes.SuspendPostAll"/>
                     </Component>
                 </Directory>
 
@@ -353,6 +354,7 @@ DowngradeErrorMessage="A later version of [ProductName] is already installed. Se
                         <File Id="window_icon_updater.exe" Source="bin\$(env.DDK_ARCH)\window-icon-updater.exe"/>
                         <File Id="set_time.ps1" Source="bin\AnyCPU\set-time.ps1"/>
                         <File Id="open_url.exe" Source="bin\$(env.DDK_ARCH)\open-url.exe"/>
+                        <File Id="update_time.bat" Source="bin\AnyCPU\update-time.bat"/>
                     </Component>
                 </Directory>
 		

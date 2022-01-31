@@ -1,0 +1,107 @@
+From ac30ffdafcf4ae61200dccef551ed31c66688ca3 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <mlukashov@tabit.pro>
+Date: Mon, 31 Jan 2022 18:16:02 +0300
+Subject: [PATCH] qubes-core-agent-windows: add qubes-rpc command
+ qubes.SuspendPostAll ; qrexec-wrapper: check if vchan is active
+
+---
+ Makefile                                 | 4 ++--
+ core-agent-windows.wxs                   | 2 ++
+ src/qrexec-services/qubes.SuspendPostAll | 1 +
+ src/qrexec-services/update-time.bat      | 7 +++++++
+ src/qrexec-wrapper/qrexec-wrapper.c      | 8 +++++++-
+ 5 files changed, 19 insertions(+), 3 deletions(-)
+ create mode 100644 src/qrexec-services/qubes.SuspendPostAll
+ create mode 100644 src/qrexec-services/update-time.bat
+
+diff --git a/Makefile b/Makefile
+index 8005630..b77d92c 100644
+--- a/Makefile
++++ b/Makefile
+@@ -6,8 +6,8 @@ LDFLAGS += -Wl,--as-needed -lqubesdb-client -lwindows-utils -lshlwapi -lwtsapi32
+ #TODO: drop ask-vm-and-run.exe
+ TOOLS = $(addprefix $(OUTDIR)/, advertise-tools.exe ask-vm-and-run.exe network-setup.exe prepare-volume.exe qrexec-agent.exe qrexec-client-vm.exe qrexec-wrapper.exe)
+ QREXEC_SERVICES = $(addprefix $(OUTDIR)/, clipboard-copy.exe clipboard-paste.exe file-receiver.exe file-sender.exe get-image-rgba.exe open-in-vm.exe open-url.exe set-gui-mode.exe vm-file-editor.exe wait-for-logon.exe window-icon-updater.exe)
+-RPC_FILES = $(addprefix $(OUTDIR_ANY)/qubes-rpc/,qubes.ClipboardCopy qubes.ClipboardPaste qubes.Filecopy qubes.GetAppMenus qubes.GetImageRGBA qubes.OpenInVM qubes.OpenURL qubes.SetDateTime qubes.SetGuiMode qubes.StartApp qubes.VMShell qubes.WaitForSession)
+-RPC_SCRIPTS = $(addprefix $(OUTDIR_ANY)/, get-appmenus.ps1 set-time.ps1 start-app.ps1)
++RPC_FILES = $(addprefix $(OUTDIR_ANY)/qubes-rpc/,qubes.ClipboardCopy qubes.ClipboardPaste qubes.Filecopy qubes.GetAppMenus qubes.GetImageRGBA qubes.OpenInVM qubes.OpenURL qubes.SetDateTime qubes.SetGuiMode qubes.StartApp qubes.VMShell qubes.WaitForSession qubes.SuspendPostAll)
++RPC_SCRIPTS = $(addprefix $(OUTDIR_ANY)/, get-appmenus.ps1 set-time.ps1 start-app.ps1 update-time.bat)
+ 
+ 
+ all: $(OUTDIR) $(OUTDIR_ANY) $(OUTDIR_ANY)/qubes-rpc $(TOOLS) $(QREXEC_SERVICES) $(RPC_FILES) $(RPC_SCRIPTS) $(OUTDIR_ANY)/service-policy.exe $(OUTDIR_ANY)/service-policy.cfg $(OUTDIR)/relocate-dir.exe
+diff --git a/core-agent-windows.wxs b/core-agent-windows.wxs
+index 77745db..a90b146 100644
+--- a/core-agent-windows.wxs
++++ b/core-agent-windows.wxs
+@@ -154,6 +154,7 @@ DisplayName='Installation directory'
+                         <File Id='qubes.GetImageRGBA' Source='src\qrexec-services\qubes.GetImageRGBA'/>
+                         <File Id='qubes.SetDateTime' Source='src\qrexec-services\qubes.SetDateTime'/>
+                         <File Id='qubes.OpenURL' Source='src\qrexec-services\qubes.OpenURL'/>
++                        <File Id='qubes.SuspendPostAll' Source='src\qrexec-services\qubes.SuspendPostAll'/>
+                     </Component>
+                 </Directory>
+                 <Directory Id='QubesRPCServicesDir' Name='qubes-rpc-services'>
+@@ -172,6 +173,7 @@ DisplayName='Installation directory'
+                         <File Id='window_icon_updater.exe' Source='bin\$(env.DDK_ARCH)\window-icon-updater.exe'/>
+                         <File Id='set_time.ps1' Source='src\qrexec-services\set-time.ps1'/>
+                         <File Id='open_url.exe' Source='bin\$(env.DDK_ARCH)\open-url.exe'/>
++                        <File Id='update_time.bat' Source='src\qrexec-services\update-time.bat'/>
+                     </Component>
+                 </Directory>
+             </Directory>
+diff --git a/src/qrexec-services/qubes.SuspendPostAll b/src/qrexec-services/qubes.SuspendPostAll
+new file mode 100644
+index 0000000..dbadbfb
+--- /dev/null
++++ b/src/qrexec-services/qubes.SuspendPostAll
+@@ -0,0 +1 @@
++update-time.bat
+diff --git a/src/qrexec-services/update-time.bat b/src/qrexec-services/update-time.bat
+new file mode 100644
+index 0000000..35e6da0
+--- /dev/null
++++ b/src/qrexec-services/update-time.bat
+@@ -0,0 +1,7 @@
++@echo off
++
++pushd "%QUBES_TOOLS%"\bin
++
++qrexec-client-vm.exe @default^|qubes.GetDate^|powershell.exe -executionpolicy bypass -noninteractive -inputformat none -file "%QUBES_TOOLS%\qubes-rpc-services\set-time.ps1"
++
++popd
+diff --git a/src/qrexec-wrapper/qrexec-wrapper.c b/src/qrexec-wrapper/qrexec-wrapper.c
+index 2b6031b..e8dd6f6 100644
+--- a/src/qrexec-wrapper/qrexec-wrapper.c
++++ b/src/qrexec-wrapper/qrexec-wrapper.c
+@@ -297,6 +297,10 @@ BOOL VchanSendMessage(
+     header.len = cbData;
+     EnterCriticalSection(&g_VchanCs);
+ 
++    if (!libvchan_is_open(vchan))
++    {
++        goto cleanup;
++    }
+     if (!VchanSendBuffer(vchan, &header, sizeof(header), L"header"))
+     {
+         LogError("VchanSendBuffer(header for %s) failed", what);
+@@ -338,6 +342,8 @@ BOOL VchanSendData(
+     ULONG messageType;
+ 
+     assert(child && child->Vchan);
++    if (!child || !child->Vchan)
++        return FALSE;
+ 
+     LogVerbose("data %p, size %lu, type %d", data, cbData, pipeType);
+ 
+@@ -977,7 +983,7 @@ cleanup:
+ 
+     if (child)
+     {
+-        if (child->Vchan)
++        if (child->Vchan && libvchan_is_open(child->Vchan))
+         {
+             // send "exit code" (creation status really) if the io isn't piped or child creation failed
+             if (!piped || status != ERROR_SUCCESS)
+-- 
+2.35.1.windows.2
+

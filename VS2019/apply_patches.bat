@@ -38,6 +38,8 @@ patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-fix-err
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-fix-exception-when-command-watch-is-used.patch
 patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-add-msg-type-MSG_CONNECTION_TERMINATED.patch
 patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-bugfix-HandleExec-send-MSG_CONNECTION_TERMINATED.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-add-qubes.SuspendPostAll.patch
+
 
 popd
 
