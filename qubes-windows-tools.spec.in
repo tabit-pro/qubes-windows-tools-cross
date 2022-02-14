@@ -68,7 +68,8 @@ Patch208:	qubes-core-agent-windows-qrexec-agent-qrexec-client-vm-remove-duplicat
 Patch209:	qubes-core-agent-windows-qrexec-wrapper-XifLogger-do-not-decrease-log-level.patch
 Patch210:	qubes-core-agent-windows-bugfix-HandleExec-send-MSG_CONNECTION_TERMINATED-whe.patch
 Patch211:	qubes-core-agent-windows-clipboard-copy-prepare-clipboard-text-before-sending.patch
-patch212:	qubes-core-agent-windows-improve-filecopy-use-replace-illegal-filename-symbol.patch
+Patch212:	qubes-core-agent-windows-improve-filecopy-use-replace-illegal-filename-symbol.patch
+Patch213:	qubes-core-agent-windows-add-qubes.SuspendPostAll.patch
 
 Patch400:	qubes-core-vchan-xen-mingw-fragments.patch
 Patch401:	qubes-core-vchan-xen-core-vchan-xen-decrease-log-level-add-more-detailed-.patch

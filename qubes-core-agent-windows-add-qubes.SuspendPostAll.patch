@@ -1,9 +1,9 @@
-From ac30ffdafcf4ae61200dccef551ed31c66688ca3 Mon Sep 17 00:00:00 2001
+From 470a6bc97151a2a53203180f96c4e5860b0c6f7c Mon Sep 17 00:00:00 2001
 From: Mikhail Lukashov <mlukashov@tabit.pro>
 Date: Mon, 31 Jan 2022 18:16:02 +0300
-Subject: [PATCH] qubes-core-agent-windows: add qubes-rpc command
- qubes.SuspendPostAll ; qrexec-wrapper: check if vchan is active
+Subject: Add qubes.SuspendPostAll with time sync
 
+This fixes the desynchronization of time after sleep/resume actions
 ---
  Makefile                                 | 4 ++--
  core-agent-windows.wxs                   | 2 ++
@@ -103,5 +103,5 @@ index 2b6031b..e8dd6f6 100644
              // send "exit code" (creation status really) if the io isn't piped or child creation failed
              if (!piped || status != ERROR_SUCCESS)
 -- 
-2.35.1.windows.2
+2.34.1
 
