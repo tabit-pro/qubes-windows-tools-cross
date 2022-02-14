@@ -121,6 +121,10 @@ patch -d qubes-core-agent-windows -p1 < %{P:206}
 patch -d qubes-core-agent-windows -p1 < %{P:207}
 patch -d qubes-core-agent-windows -p1 < %{P:208}
 patch -d qubes-core-agent-windows -p1 < %{P:209}
+patch -d qubes-core-agent-windows -p1 < %{P:210}
+patch -d qubes-core-agent-windows -p1 < %{P:211}
+patch -d qubes-core-agent-windows -p1 < %{P:212}
+patch -d qubes-core-agent-windows -p1 < %{P:213}
 
 patch -d qubes-core-vchan-xen -p1 < %{P:400}
 patch -d qubes-core-vchan-xen -p1 < %{P:401}
@@ -128,6 +132,7 @@ patch -d qubes-core-vchan-xen -p1 < %{P:401}
 patch -d qubes-windows-utils -p1 < %{P:500}
 patch -d qubes-windows-utils -p1 < %{P:501}
 patch -d qubes-windows-utils -p1 < %{P:502}
+patch -d qubes-windows-utils -p1 < %{P:503}
 
 patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:600}
 patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:601}
