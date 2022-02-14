@@ -12,6 +12,7 @@ patch -Nfs -d qubes-vmm-xen-win-pvdrivers-xeniface -p1 < qubes-vmm-xen-win-pvdri
 patch -Nfs -d qubes-gui-agent-windows -p1 < qubes-gui-agent-windows-destroy.patch
 patch -Nfs -d qubes-gui-agent-windows -p1 < qubes-gui-agent-windows-watchdog-disable-session-change.patch
 patch -Nfs -d qubes-core-agent-windows -p1 < Bugfix-advertise-tools-issues-error-when-calls-qubes.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-clipboard-copy-prepare-clipboard-text-before-sending.patch
 
 @rem %patch0 -p1
 patch -Nfs -p0 < qubes-core-agent-windows-warn-incompat-proto.patch
@@ -38,8 +39,8 @@ patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-qubesdb-daemon-fix-err
 patch -Nfs -d qubes-core-qubesdb -p1 < qubes-core-qubesdb-fix-exception-when-command-watch-is-used.patch
 patch -Nfs -d qubes-windows-utils -p1 < qubes-windows-utils-add-msg-type-MSG_CONNECTION_TERMINATED.patch
 patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-bugfix-HandleExec-send-MSG_CONNECTION_TERMINATED.patch
+patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-improve-filecopy-use-replace-illegal-filename-symbol.patch
 patch -Nfs -d qubes-core-agent-windows -p1 < qubes-core-agent-windows-add-qubes.SuspendPostAll.patch
-
 
 popd
 
