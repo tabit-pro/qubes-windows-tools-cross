@@ -67,12 +67,6 @@ Patch207:	qubes-core-agent-windows-Bugfix-advertise-tools-issues.patch
 Patch208:	qubes-core-agent-windows-qrexec-agent-qrexec-client-vm-remove-duplicated-erro.patch
 Patch209:	qubes-core-agent-windows-qrexec-wrapper-XifLogger-do-not-decrease-log-level.patch
 
-Patch300:	qubes-core-qubesdb-mingw-fragments.patch
-Patch301:	qubes-core-qubesdb-fix-win32-compilation.patch
-Patch302:	qubes-core-qubesdb-daemon-fix-build-using-VS2019.patch
-Patch303:	qubes-core-qubesdb-db-daemon-decrease-log-level-add-more-detailed-log-d.patch
-Patch304:	qubes-core-qubesdb-qdb-client-remove-duplicated-error-logging.patch
-
 Patch400:	qubes-core-vchan-xen-mingw-fragments.patch
 Patch401:	qubes-core-vchan-xen-core-vchan-xen-decrease-log-level-add-more-detailed-.patch
 
@@ -122,12 +116,6 @@ patch -d qubes-core-agent-windows -p1 < %{P:206}
 patch -d qubes-core-agent-windows -p1 < %{P:207}
 patch -d qubes-core-agent-windows -p1 < %{P:208}
 patch -d qubes-core-agent-windows -p1 < %{P:209}
-
-patch -d qubes-core-qubesdb -p1 < %{P:300}
-patch -d qubes-core-qubesdb -p1 < %{P:301}
-patch -d qubes-core-qubesdb -p1 < %{P:302}
-patch -d qubes-core-qubesdb -p1 < %{P:303}
-patch -d qubes-core-qubesdb -p1 < %{P:304}
 
 patch -d qubes-core-vchan-xen -p1 < %{P:400}
 patch -d qubes-core-vchan-xen -p1 < %{P:401}
