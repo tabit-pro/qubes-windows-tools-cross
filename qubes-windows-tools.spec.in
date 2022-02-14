@@ -66,6 +66,7 @@ Patch206:	qubes-core-agent-windows-qrexec-agent-fix-service-shutdown.patch
 Patch207:	qubes-core-agent-windows-Bugfix-advertise-tools-issues.patch
 Patch208:	qubes-core-agent-windows-qrexec-agent-qrexec-client-vm-remove-duplicated-erro.patch
 Patch209:	qubes-core-agent-windows-qrexec-wrapper-XifLogger-do-not-decrease-log-level.patch
+Patch210:	qubes-core-agent-windows-bugfix-HandleExec-send-MSG_CONNECTION_TERMINATED-whe.patch
 
 Patch400:	qubes-core-vchan-xen-mingw-fragments.patch
 Patch401:	qubes-core-vchan-xen-core-vchan-xen-decrease-log-level-add-more-detailed-.patch
@@ -73,6 +74,7 @@ Patch401:	qubes-core-vchan-xen-core-vchan-xen-decrease-log-level-add-more-detail
 Patch500:	qubes-windows-utils-mingw-fragments.patch
 Patch501:	qubes-windows-utils-LogReadLevel-minor-improvements-.patch
 Patch502:	qubes-windows-utils-remove-duplicated-error-logging-.patch
+Patch503:	qubes-windows-utils-add-msg-type-MSG_CONNECTION_TERMINATED.patch
 
 Patch600:	qubes-installer-qubes-os-windows-tools-mingw-fragments.patch
 Patch601:	qubes-installer-qubes-os-windows-tools-power_settings-disable-hibernation.patch
