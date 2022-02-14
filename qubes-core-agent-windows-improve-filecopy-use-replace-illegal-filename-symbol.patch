@@ -1,0 +1,181 @@
+From 0ae9c375440b757186227b1ebe4b044df44a7825 Mon Sep 17 00:00:00 2001
+From: Mikhail Lukashov <michael.lukashov@gmail.com>
+Date: Thu, 10 Feb 2022 16:52:08 +0300
+Subject: [PATCH] improve filecopy: use replace illegal filename symbols by '_'
+ (copied from git: xutftowcs_path
+
+---
+ src/qrexec-services/file-receiver/unpack.c | 123 +++++++++++++++++++--
+ 1 file changed, 114 insertions(+), 9 deletions(-)
+
+diff --git a/src/qrexec-services/file-receiver/unpack.c b/src/qrexec-services/file-receiver/unpack.c
+index 0312970..31965da 100644
+--- a/src/qrexec-services/file-receiver/unpack.c
++++ b/src/qrexec-services/file-receiver/unpack.c
+@@ -45,6 +45,96 @@ extern HANDLE g_stdin;
+ extern HANDLE g_stdout;
+ extern WCHAR g_mappedDriveLetter;
+ 
++static int xutftowcsn(wchar_t *wcs, const char *utfs, size_t wcslen, int utflen)
++{
++    int upos = 0, wpos = 0;
++    const unsigned char *utf = (const unsigned char*) utfs;
++    if (!utf || !wcs || wcslen < 1) {
++        errno = EINVAL;
++        return -1;
++    }
++    /* reserve space for \0 */
++    wcslen--;
++    if (utflen < 0)
++        utflen = INT_MAX;
++
++    while (upos < utflen) {
++        int c = utf[upos++] & 0xff;
++        if (utflen == INT_MAX && c == 0)
++            break;
++
++        if (wpos >= (int)wcslen) {
++            wcs[wpos] = 0;
++            errno = ERANGE;
++            return -1;
++        }
++
++        if (c < 0x80) {
++            /* ASCII */
++            // check colon symbol ':'
++            if (c == 0x3a) {
++                c = '_';
++            }
++            wcs[wpos++] = c;
++        } else if (c >= 0xc2 && c < 0xe0 && upos < utflen &&
++                   (utf[upos] & 0xc0) == 0x80) {
++            /* 2-byte utf-8 */
++            c = ((c & 0x1f) << 6);
++            c |= (utf[upos++] & 0x3f);
++            wcs[wpos++] = c;
++        } else if (c >= 0xe0 && c < 0xf0 && upos + 1 < utflen &&
++                   !(c == 0xe0 && utf[upos] < 0xa0) && /* over-long encoding */
++                   (utf[upos] & 0xc0) == 0x80 &&
++                   (utf[upos + 1] & 0xc0) == 0x80) {
++            /* 3-byte utf-8 */
++            c = ((c & 0x0f) << 12);
++            c |= ((utf[upos++] & 0x3f) << 6);
++            c |= (utf[upos++] & 0x3f);
++            wcs[wpos++] = c;
++        } else if (c >= 0xf0 && c < 0xf5 && upos + 2 < utflen &&
++                   wpos + 1 < wcslen &&
++                   !(c == 0xf0 && utf[upos] < 0x90) && /* over-long encoding */
++                   !(c == 0xf4 && utf[upos] >= 0x90) && /* > \u10ffff */
++                   (utf[upos] & 0xc0) == 0x80 &&
++                   (utf[upos + 1] & 0xc0) == 0x80 &&
++                   (utf[upos + 2] & 0xc0) == 0x80) {
++            /* 4-byte utf-8: convert to \ud8xx \udcxx surrogate pair */
++            c = ((c & 0x07) << 18);
++            c |= ((utf[upos++] & 0x3f) << 12);
++            c |= ((utf[upos++] & 0x3f) << 6);
++            c |= (utf[upos++] & 0x3f);
++            c -= 0x10000;
++            wcs[wpos++] = 0xd800 | (c >> 10);
++            wcs[wpos++] = 0xdc00 | (c & 0x3ff);
++        } else if (c >= 0xa0) {
++            /* invalid utf-8 byte, printable unicode char: convert 1:1 */
++            wcs[wpos++] = c;
++        } else {
++            /* invalid utf-8 byte, non-printable unicode: convert to hex */
++            static const char *hex = "0123456789abcdef";
++            wcs[wpos++] = hex[c >> 4];
++            if (wpos < wcslen)
++                wcs[wpos++] = hex[c & 0x0f];
++        }
++    }
++    wcs[wpos] = 0;
++    return wpos;
++}
++
++static inline int xutftowcs_path_ex(wchar_t *wcs, const char *utf,
++                                    size_t wcslen, int utflen)
++{
++    int result = xutftowcsn(wcs, utf, wcslen, utflen);
++    if (result < 0 && errno == ERANGE)
++        errno = ENAMETOOLONG;
++    return result;
++}
++
++static inline int xutftowcs_path(wchar_t *wcs, const char *utf)
++{
++    return xutftowcs_path_ex(wcs, utf, MAX_PATH, -1);
++}
++
+ void SetSizeLimit(IN INT64 bytesLimit, IN INT64 filesLimit)
+ {
+     g_bytesLimit = bytesLimit;
+@@ -104,9 +194,13 @@ void ProcessRegularFile(IN const struct file_header *untrustedHeader, IN const c
+     WCHAR trustedFilePath[MAX_PATH + 1];
+     HRESULT hresult;
+ 
+-    errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedFileName, NULL);
+-    if (ERROR_SUCCESS != errorCode)
++    untrustedFileName = (WCHAR*)calloc(MAX_PATH + 1, 1);
++    int result = xutftowcs_path(untrustedFileName, untrustedNameUtf8);
++    if (result <= 0)
+         SendStatusAndExit(EINVAL, NULL);
++    /*errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedFileName, NULL);
++    if (ERROR_SUCCESS != errorCode)
++        SendStatusAndExit(EINVAL, NULL);*/
+ 
+     LogDebug("file '%s'", untrustedFileName);
+     hresult = StringCchPrintf(
+@@ -155,9 +249,13 @@ void ProcessDirectory(IN const struct file_header *untrustedHeader, IN const cha
+     WCHAR trustedDirectoryPath[MAX_PATH + 1];
+     HRESULT hresult;
+ 
+-    errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedDirectoryName, NULL);
+-    if (ERROR_SUCCESS != errorCode)
++    untrustedDirectoryName = (WCHAR*)calloc(MAX_PATH + 1, 1);
++    int result = xutftowcs_path(untrustedDirectoryName, untrustedNameUtf8);
++    if (result <= 0)
+         SendStatusAndExit(EINVAL, NULL);
++    /*errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedDirectoryName, NULL);
++    if (ERROR_SUCCESS != errorCode)
++        SendStatusAndExit(EINVAL, NULL);*/
+ 
+     LogDebug("dir '%s'", untrustedDirectoryName);
+     hresult = StringCchPrintf(
+@@ -189,12 +287,15 @@ void ProcessLink(IN const struct file_header *untrustedHeader, IN const char *un
+     WCHAR untrustedLinkTargetAbsolutePath[MAX_PATH + 1];
+     BOOL success;
+     HRESULT hresult;
+-    ULONG errorCode;
+     BOOL targetIsFile = FALSE; /* default to directory links */
+ 
+-    errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedName, NULL);
+-    if (ERROR_SUCCESS != errorCode)
++    untrustedName = (WCHAR*)calloc(MAX_PATH + 1, 1);
++    int result = xutftowcs_path(untrustedName, untrustedNameUtf8);
++    if (result <= 0)
+         SendStatusAndExit(EINVAL, NULL);
++    /*errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedName, NULL);
++    if (ERROR_SUCCESS != errorCode)
++        SendStatusAndExit(EINVAL, NULL);*/
+ 
+     LogDebug("link '%s'", untrustedName);
+     hresult = StringCchPrintf(
+@@ -218,9 +319,13 @@ void ProcessLink(IN const struct file_header *untrustedHeader, IN const char *un
+ 
+     untrustedLinkTargetPathUtf8[linkTargetSize] = 0;
+ 
+-    errorCode = ConvertUTF8ToUTF16(untrustedLinkTargetPathUtf8, &untrustedLinkTargetPath, NULL);
+-    if (ERROR_SUCCESS != errorCode)
++    untrustedLinkTargetPath = (WCHAR*)calloc(MAX_PATH + 1, 1);
++    result = xutftowcs_path(untrustedLinkTargetPath, untrustedLinkTargetPathUtf8);
++    if (result <= 0)
+         SendStatusAndExit(EINVAL, untrustedNameUtf8);
++    /*errorCode = ConvertUTF8ToUTF16(untrustedLinkTargetPathUtf8, &untrustedLinkTargetPath, NULL);
++    if (ERROR_SUCCESS != errorCode)
++        SendStatusAndExit(EINVAL, untrustedNameUtf8);*/
+ 
+     LogDebug("target '%s'", untrustedLinkTargetPath);
+     /* TODO? sanitize link target path in any way? we don't allow to override
+-- 
+2.35.1.windows.2
+
