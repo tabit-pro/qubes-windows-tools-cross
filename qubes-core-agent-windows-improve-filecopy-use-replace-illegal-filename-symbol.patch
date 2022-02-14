@@ -1,15 +1,19 @@
-From 0ae9c375440b757186227b1ebe4b044df44a7825 Mon Sep 17 00:00:00 2001
+From 9250f6ef9ca3a15a65e340dcf3af233083cfdc70 Mon Sep 17 00:00:00 2001
 From: Mikhail Lukashov <michael.lukashov@gmail.com>
 Date: Thu, 10 Feb 2022 16:52:08 +0300
-Subject: [PATCH] improve filecopy: use replace illegal filename symbols by '_'
- (copied from git: xutftowcs_path
+Subject: filecopy: improve filename convertion
 
+Replace illegal filename symbols by '_'
+
+copied from git: xutftowcs_path
+
+This fixes QubesOS/qubes-issues#5819
 ---
- src/qrexec-services/file-receiver/unpack.c | 123 +++++++++++++++++++--
- 1 file changed, 114 insertions(+), 9 deletions(-)
+ src/qrexec-services/file-receiver/unpack.c | 111 +++++++++++++++++++--
+ 1 file changed, 102 insertions(+), 9 deletions(-)
 
 diff --git a/src/qrexec-services/file-receiver/unpack.c b/src/qrexec-services/file-receiver/unpack.c
-index 0312970..31965da 100644
+index 0312970..b3d0e08 100644
 --- a/src/qrexec-services/file-receiver/unpack.c
 +++ b/src/qrexec-services/file-receiver/unpack.c
 @@ -45,6 +45,96 @@ extern HANDLE g_stdin;
@@ -109,7 +113,7 @@ index 0312970..31965da 100644
  void SetSizeLimit(IN INT64 bytesLimit, IN INT64 filesLimit)
  {
      g_bytesLimit = bytesLimit;
-@@ -104,9 +194,13 @@ void ProcessRegularFile(IN const struct file_header *untrustedHeader, IN const c
+@@ -104,8 +194,9 @@ void ProcessRegularFile(IN const struct file_header *untrustedHeader, IN const c
      WCHAR trustedFilePath[MAX_PATH + 1];
      HRESULT hresult;
  
@@ -119,13 +123,9 @@ index 0312970..31965da 100644
 +    int result = xutftowcs_path(untrustedFileName, untrustedNameUtf8);
 +    if (result <= 0)
          SendStatusAndExit(EINVAL, NULL);
-+    /*errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedFileName, NULL);
-+    if (ERROR_SUCCESS != errorCode)
-+        SendStatusAndExit(EINVAL, NULL);*/
  
      LogDebug("file '%s'", untrustedFileName);
-     hresult = StringCchPrintf(
-@@ -155,9 +249,13 @@ void ProcessDirectory(IN const struct file_header *untrustedHeader, IN const cha
+@@ -155,8 +246,9 @@ void ProcessDirectory(IN const struct file_header *untrustedHeader, IN const cha
      WCHAR trustedDirectoryPath[MAX_PATH + 1];
      HRESULT hresult;
  
@@ -135,13 +135,9 @@ index 0312970..31965da 100644
 +    int result = xutftowcs_path(untrustedDirectoryName, untrustedNameUtf8);
 +    if (result <= 0)
          SendStatusAndExit(EINVAL, NULL);
-+    /*errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedDirectoryName, NULL);
-+    if (ERROR_SUCCESS != errorCode)
-+        SendStatusAndExit(EINVAL, NULL);*/
  
      LogDebug("dir '%s'", untrustedDirectoryName);
-     hresult = StringCchPrintf(
-@@ -189,12 +287,15 @@ void ProcessLink(IN const struct file_header *untrustedHeader, IN const char *un
+@@ -189,11 +281,11 @@ void ProcessLink(IN const struct file_header *untrustedHeader, IN const char *un
      WCHAR untrustedLinkTargetAbsolutePath[MAX_PATH + 1];
      BOOL success;
      HRESULT hresult;
@@ -154,13 +150,9 @@ index 0312970..31965da 100644
 +    int result = xutftowcs_path(untrustedName, untrustedNameUtf8);
 +    if (result <= 0)
          SendStatusAndExit(EINVAL, NULL);
-+    /*errorCode = ConvertUTF8ToUTF16(untrustedNameUtf8, &untrustedName, NULL);
-+    if (ERROR_SUCCESS != errorCode)
-+        SendStatusAndExit(EINVAL, NULL);*/
  
      LogDebug("link '%s'", untrustedName);
-     hresult = StringCchPrintf(
-@@ -218,9 +319,13 @@ void ProcessLink(IN const struct file_header *untrustedHeader, IN const char *un
+@@ -218,8 +310,9 @@ void ProcessLink(IN const struct file_header *untrustedHeader, IN const char *un
  
      untrustedLinkTargetPathUtf8[linkTargetSize] = 0;
  
@@ -170,12 +162,8 @@ index 0312970..31965da 100644
 +    result = xutftowcs_path(untrustedLinkTargetPath, untrustedLinkTargetPathUtf8);
 +    if (result <= 0)
          SendStatusAndExit(EINVAL, untrustedNameUtf8);
-+    /*errorCode = ConvertUTF8ToUTF16(untrustedLinkTargetPathUtf8, &untrustedLinkTargetPath, NULL);
-+    if (ERROR_SUCCESS != errorCode)
-+        SendStatusAndExit(EINVAL, untrustedNameUtf8);*/
  
      LogDebug("target '%s'", untrustedLinkTargetPath);
-     /* TODO? sanitize link target path in any way? we don't allow to override
 -- 
-2.35.1.windows.2
+2.34.1
 
