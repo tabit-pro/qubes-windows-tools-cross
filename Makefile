@@ -63,14 +63,16 @@ $(BINARIES):
 	mv $@.UNTRUSTED $@
 
 DEVCON := devcon.tar.gz
+DEVCON_COMMIT := 9f03207ae1e8df83325f067de84494ae55ab5e97
 
 $(DEVCON):
-	rm -fr devcon devcon.UNTRUSTED
-	git clone --no-checkout --filter=blob:none --depth=1 --branch=master --single-branch https://github.com/microsoft/Windows-driver-samples.git devcon.UNTRUSTED
-	git -C devcon.UNTRUSTED checkout master setup/devcon
-	cp sources.devcon devcon.UNTRUSTED/setup/
-	cd devcon.UNTRUSTED/setup/ && cat sources.devcon | sha512sum -c -
-	tar -czf $(DEVCON) -C devcon.UNTRUSTED/setup devcon
+	rm -fr devcon.git
+	mkdir devcon.git
+	git -C devcon.git init
+	git -C devcon.git remote add origin https://github.com/microsoft/Windows-driver-samples.git
+	git -C devcon.git fetch --filter=blob:none --depth=1 origin $(DEVCON_COMMIT)
+	git -C devcon.git checkout $(DEVCON_COMMIT) setup/devcon
+	tar -czf $(DEVCON) -C devcon.git/setup devcon
 
 get-sources: $(PVDRIVERS) $(BINARIES) $(DEVCON)
 get-sources:
