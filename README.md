@@ -10,15 +10,15 @@ git clone https://github.com/QubesOS/qubes-builder
 cd qubes-builder
 make install-deps
 make remount
-make BUILDERCONF=example-configs/qubes-os-r4.1.conf COMPONENTS=builder-rpm get-sources
+make BUILDERCONF=example-configs/qubes-os-master.conf COMPONENTS=builder-rpm get-sources
 ```
 2. Get QWT sources and extra binaries
 ```
-make BUILDERCONF=example-configs/qubes-os-r4.1.conf BASEURL=https://github.com GIT_PREFIX=tabit-pro/qubes- INSECURE_SKIP_CHECKING=windows-tools-cross COMPONENTS=windows-tools-cross get-sources
+make BUILDERCONF=example-configs/qubes-os-master.conf BASEURL=https://github.com GIT_PREFIX=tabit-pro/qubes- INSECURE_SKIP_CHECKING=windows-tools-cross COMPONENTS=windows-tools-cross get-sources
 ```
 3. Build QWT iso
 ```
-make BUILDERCONF=example-configs/qubes-os-r4.1.conf COMPONENTS=windows-tools-cross windows-tools-cross-dom0
+make BUILDERCONF=example-configs/qubes-os-master.conf COMPONENTS=windows-tools-cross windows-tools-cross-dom0
 ```
 4. Extract result package in disposable VM to get temporary CDROM device available [Note: you may need to add --nosignature to the rpm invocation to extract the ISO.]
 ```
