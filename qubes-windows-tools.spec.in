@@ -54,8 +54,6 @@ Patch0:         devcon-headers.patch
 Patch600:	qubes-installer-qubes-os-windows-tools-mingw-fragments.patch
 Patch601:	qubes-installer-qubes-os-windows-tools-power_settings-disable-hibernation.patch
 
-Patch700:	qubes-vmm-xen-windows-pvdrivers-mingw-fragments.patch
-
 %prep
 %setup -c -T
 cp -f %{S:100} ./
@@ -76,8 +74,6 @@ cp -f %{S:10} include
 
 patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:600}
 patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:601}
-
-patch -d qubes-vmm-xen-windows-pvdrivers -p1 < %{P:700}
 
 mkdir -p $HOME/.cache/winetricks/dotnet40
 cp %{S:27} $HOME/.cache/winetricks/dotnet40
