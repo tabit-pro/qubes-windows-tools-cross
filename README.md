@@ -29,7 +29,10 @@ sudo losetup -f /usr/lib/qubes/qubes-windows-tools.iso
 ```
 dom0: qvm-start [windows-qube-name] --cdrom [dispXXXX]:loop0
 ```
-
+_Warning: Windows 10+ may not recognize a attached CDROM. In this case, you need to disable hibernation mode and restart the VM._
+```
+C:\Windows\> powercfg -H OFF
+```
 
 ## Build using Visual Studio 2019
 
