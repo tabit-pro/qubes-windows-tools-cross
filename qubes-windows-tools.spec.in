@@ -50,10 +50,6 @@ Source27:	dotNetFx40_Full_x86_x64.exe
 
 Patch0:         devcon-headers.patch
 
-# Various fixes (see patch messages)
-Patch600:	qubes-installer-qubes-os-windows-tools-mingw-fragments.patch
-Patch601:	qubes-installer-qubes-os-windows-tools-power_settings-disable-hibernation.patch
-
 %prep
 %setup -c -T
 cp -f %{S:100} ./
@@ -71,9 +67,6 @@ mkdir -p include
 cp -f %{S:10} include
 
 %patch0 -p1
-
-patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:600}
-patch -d qubes-installer-qubes-os-windows-tools -p1 < %{P:601}
 
 mkdir -p $HOME/.cache/winetricks/dotnet40
 cp %{S:27} $HOME/.cache/winetricks/dotnet40
