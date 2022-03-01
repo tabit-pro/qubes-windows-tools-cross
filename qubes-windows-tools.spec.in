@@ -33,7 +33,6 @@ Source10: 	assembly.h
 
 # Add local sources
 Source16:	preparation.bat
-Source17:	pkihelper.c
 Source18:	qubes-tools-combined.wxs
 Source19:	diskpart.ps1
 Source20:	qnetwork_setup.bat
@@ -69,8 +68,6 @@ cat %{_sourcedir}/xen*.tar | tar -xvf - -i
 sed -i "s|#VERSION#|%{version}|g" %{S:18}
 cp -f %{S:18} ./
 
-mkdir -p qubes-gui-agent-windows/install-helper/pkihelper/
-cp -f %{S:17} qubes-gui-agent-windows/install-helper/pkihelper/
 mkdir -p include
 
 cp -f %{S:10} include
