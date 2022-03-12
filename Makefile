@@ -70,6 +70,7 @@ $(DEVCON):
 	mkdir devcon.git
 	git -C devcon.git init
 	git -C devcon.git remote add origin https://github.com/microsoft/Windows-driver-samples.git
+	git -C devcon.git config --local extensions.partialClone true
 	git -C devcon.git fetch --filter=blob:none --depth=1 origin $(DEVCON_COMMIT)
 	git -C devcon.git checkout $(DEVCON_COMMIT) setup/devcon
 	tar -czf $(DEVCON) -C devcon.git/setup devcon
